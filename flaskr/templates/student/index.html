@@ -1,0 +1,409 @@
+{% extends 'base.html' %}
+
+{% block header %}
+  <h1>{% block title %}Estudiantes{% endblock %}</h1>
+{% endblock %}
+
+{% block content %}
+<div class="filters">
+  <div class="filter-item">
+    <label for="periodo">Periodo</label>
+    <select id="periodo">
+      <option value="">-- Selecciona --</option>
+      {% for p in periodos %}
+        <option value="{{ p['id'] }}">{{ p['name'] }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="filter-item">
+    <label for="semestre">Semestre</label>
+    <select id="semestre" disabled>
+      <option value="">-- Primero selecciona periodo --</option>
+    </select>
+  </div>
+
+  <div class="filter-item">
+    <label for="turno">Turno</label>
+    <select id="turno" disabled>
+      <option value="">-- Primero selecciona semestre --</option>
+    </select>
+  </div>
+
+  <div class="filter-item">
+    <label for="grupo">Grupo</label>
+    <select id="grupo" disabled>
+      <option value="">-- Primero selecciona turno --</option>
+    </select>
+  </div>
+
+  <div class="filter-item">
+    <label for="clase">Clase</label>
+    <select id="clase" disabled>
+      <option value="">-- Primero selecciona semestre --</option>
+    </select>
+  </div>
+</div>
+
+<div id="results"></div>
+
+<!-- Edit modal -->
+<div id="modal-overlay" class="modal-hidden">
+  <div class="modal">
+    <h2>Editar Estudiante</h2>
+    <form id="edit-form">
+      <input type="hidden" id="edit-student-id">
+
+      <div class="form-row">
+        <div class="form-col">
+          <label>Nombre</label>
+          <input type="text" id="edit-name" required>
+        </div>
+        <div class="form-col">
+          <label>Apellido</label>
+          <input type="text" id="edit-lastname" required>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-col">
+          <label>Periodo</label>
+          <input type="text" id="edit-periodo-display" readonly>
+          <input type="hidden" id="edit-periodo-val">
+        </div>
+        <div class="form-col">
+          <label>Semestre</label>
+          <input type="text" id="edit-semester-display" readonly>
+          <input type="hidden" id="edit-semester">
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-col">
+          <label>Turno</label>
+          <select id="edit-turno-sel"><option value="">-- Selecciona --</option></select>
+          <input type="text" id="edit-turno-txt" readonly class="modal-hidden">
+          <input type="hidden" id="edit-turno-val">
+        </div>
+        <div class="form-col">
+          <label>Grupo</label>
+          <select id="edit-grupo-sel" disabled><option value="">-- Selecciona turno primero --</option></select>
+          <input type="text" id="edit-grupo-txt" readonly class="modal-hidden">
+          <input type="hidden" id="edit-grupo-val">
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-col">
+          <label>Clase</label>
+          <select id="edit-clase-sel"><option value="">-- Selecciona clase --</option></select>
+          <input type="text" id="edit-clase-txt" readonly class="modal-hidden">
+          <input type="hidden" id="edit-clase-val">
+        </div>
+        <div class="form-col" id="grade-col" style="display:none">
+          <label for="edit-grade">Calificación</label>
+          <input type="number" id="edit-grade" min="5" max="10">
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button type="submit" class="btn-save">Guardar</button>
+        <button type="button" id="cancel-btn" class="btn-cancel">Cancelar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  const periodoSelect = document.getElementById('periodo');
+  const semSelect     = document.getElementById('semestre');
+  const turnoSelect   = document.getElementById('turno');
+  const grupoSelect   = document.getElementById('grupo');
+  const claseSelect   = document.getElementById('clase');
+  const results       = document.getElementById('results');
+  const overlay       = document.getElementById('modal-overlay');
+
+  function reset(sel, placeholder) {
+    sel.innerHTML = `<option value="">${placeholder}</option>`;
+    sel.disabled = true;
+  }
+
+  // ── Filter dropdown cascade ──────────────────────────────────────────────────
+
+  periodoSelect.addEventListener('change', async () => {
+    reset(semSelect,   '-- Selecciona semestre --');
+    reset(turnoSelect, '-- Primero selecciona semestre --');
+    reset(grupoSelect, '-- Primero selecciona turno --');
+    reset(claseSelect, '-- Primero selecciona semestre --');
+    results.innerHTML = '';
+    if (periodoSelect.value) {
+      const semestres = await (await fetch(`/api/semestres?periodo_id=${periodoSelect.value}`)).json();
+      semSelect.disabled = false;
+      semestres.forEach(s => semSelect.add(new Option(`Semestre ${s.semester}`, s.semester)));
+    }
+  });
+
+  semSelect.addEventListener('change', async () => {
+    const periodo_id = periodoSelect.value;
+    const semester   = semSelect.value;
+    reset(turnoSelect, '-- Selecciona turno --');
+    reset(grupoSelect, '-- Primero selecciona turno --');
+    reset(claseSelect, '-- Selecciona clase --');
+    if (semester) {
+      const [turnosRes, clasesRes] = await Promise.all([
+        fetch(`/api/turnos?periodo_id=${periodo_id}&semester=${semester}`),
+        fetch(`/api/clases?semester=${semester}`)
+      ]);
+      const turnos = await turnosRes.json();
+      const clases = await clasesRes.json();
+      turnoSelect.disabled = false;
+      turnos.forEach(t => turnoSelect.add(new Option(t.name, t.id)));
+      claseSelect.disabled = false;
+      clases.forEach(c => claseSelect.add(new Option(c.name, c.id)));
+    }
+    await fetchStudents();
+  });
+
+  turnoSelect.addEventListener('change', async () => {
+    reset(grupoSelect, '-- Selecciona grupo --');
+    const turno_id = turnoSelect.value;
+    if (turno_id) {
+      const res = await fetch(`/api/grupos?periodo_id=${periodoSelect.value}&semester=${semSelect.value}&turno_id=${turno_id}`);
+      const grupos = await res.json();
+      grupoSelect.disabled = false;
+      grupos.forEach(g => grupoSelect.add(new Option(g.name.toUpperCase(), g.id)));
+    }
+    await fetchStudents();
+  });
+
+  grupoSelect.addEventListener('change', () => fetchStudents());
+  claseSelect.addEventListener('change', () => fetchStudents());
+
+  // ── Fetch & render students ──────────────────────────────────────────────────
+
+  const PAGE_SIZE = 10;
+  let allStudents = [];
+  let currentPage = 0;
+  let hasClase    = false;
+
+  async function fetchStudents() {
+    const periodo_id = periodoSelect.value;
+    const semester   = semSelect.value;
+    results.innerHTML = '';
+    if (!periodo_id || !semester) return;
+
+    const params = new URLSearchParams({ periodo_id, semester });
+    if (turnoSelect.value) params.set('turno_id', turnoSelect.value);
+    if (grupoSelect.value) params.set('grupo_id', grupoSelect.value);
+    if (claseSelect.value) params.set('clase_id', claseSelect.value);
+
+    const res = await fetch(`/api/students?${params}`);
+    allStudents = await res.json();
+    currentPage = 0;
+    hasClase    = !!claseSelect.value;
+
+    renderPage();
+  }
+
+  function renderPage() {
+    if (!allStudents.length) {
+      results.innerHTML = '<p class="no-results">No se encontraron estudiantes.</p>';
+      return;
+    }
+
+    const totalPages = Math.ceil(allStudents.length / PAGE_SIZE);
+    const page       = allStudents.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE);
+
+    const rows = page.map(s => `<tr class="clickable-row" data-student-id="${s.id}">
+        <td>${s.name} ${s.lastname}</td>
+        <td>${s.semester}</td>
+        <td>${s.turno}</td>
+        <td>${s.grupo.toUpperCase()}</td>
+        ${hasClase ? `<td>${s.clase}</td><td>${s.grade}</td>` : ''}
+      </tr>`).join('');
+
+    results.innerHTML = `
+      <table class="students-table">
+        <thead>
+          <tr>
+            <th>Nombre</th>
+            <th>Semestre</th>
+            <th>Turno</th>
+            <th>Grupo</th>
+            ${hasClase ? '<th>Clase</th><th>Calificación</th>' : ''}
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <div class="pagination">
+        <button id="prev-btn" ${currentPage === 0 ? 'disabled' : ''}>&#8592; Anterior</button>
+        <span>${currentPage + 1} / ${totalPages} &nbsp;(${allStudents.length} estudiantes)</span>
+        <button id="next-btn" ${currentPage >= totalPages - 1 ? 'disabled' : ''}>Siguiente &#8594;</button>
+      </div>`;
+
+    document.getElementById('prev-btn').addEventListener('click', () => { currentPage--; renderPage(); });
+    document.getElementById('next-btn').addEventListener('click', () => { currentPage++; renderPage(); });
+  }
+
+  // ── Modal ────────────────────────────────────────────────────────────────────
+
+  results.addEventListener('click', async e => {
+    const row = e.target.closest('tr[data-student-id]');
+    if (!row) return;
+    await openModal(row.dataset.studentId);
+  });
+
+  // Show a readonly text input, hide the select, and store the value.
+  function lockField(selId, txtId, valId, text, value) {
+    document.getElementById(selId).classList.add('modal-hidden');
+    const txt = document.getElementById(txtId);
+    txt.value = text;
+    txt.classList.remove('modal-hidden');
+    document.getElementById(valId).value = value;
+  }
+
+  // Show the select, hide the readonly input.
+  function unlockField(selId, txtId) {
+    document.getElementById(selId).classList.remove('modal-hidden');
+    document.getElementById(txtId).classList.add('modal-hidden');
+  }
+
+  async function populateModalGrupos(periodoId, semester, turnoId, selectedGroupId) {
+    const grupoSel = document.getElementById('edit-grupo-sel');
+    if (!turnoId) {
+      grupoSel.innerHTML = '<option value="">-- Selecciona turno primero --</option>';
+      grupoSel.disabled = true;
+      document.getElementById('edit-grupo-val').value = '';
+      return;
+    }
+    const grupos = await (await fetch(`/api/grupos?periodo_id=${periodoId}&semester=${semester}&turno_id=${turnoId}`)).json();
+    grupoSel.innerHTML = '<option value="">-- Selecciona grupo --</option>';
+    grupos.forEach(g => grupoSel.add(new Option(g.name.toUpperCase(), g.id)));
+    grupoSel.disabled = false;
+    if (selectedGroupId) {
+      grupoSel.value = selectedGroupId;
+      document.getElementById('edit-grupo-val').value = selectedGroupId;
+    }
+  }
+
+  async function openModal(studentId) {
+    const s = await (await fetch(`/api/student/${studentId}`)).json();
+
+    document.getElementById('edit-student-id').value       = studentId;
+    document.getElementById('edit-name').value             = s.name;
+    document.getElementById('edit-lastname').value         = s.lastname;
+    document.getElementById('edit-periodo-display').value  = s.periodo_name;
+    document.getElementById('edit-periodo-val').value      = s.periodo_id;
+    document.getElementById('edit-semester-display').value = `Semestre ${s.semester}`;
+    document.getElementById('edit-semester').value         = s.semester;
+
+    // ── Turno ────────────────────────────────────────────────────────────────
+    if (turnoSelect.value) {
+      lockField('edit-turno-sel', 'edit-turno-txt', 'edit-turno-val',
+                turnoSelect.options[turnoSelect.selectedIndex].text, turnoSelect.value);
+    } else {
+      unlockField('edit-turno-sel', 'edit-turno-txt');
+      const turnoSel = document.getElementById('edit-turno-sel');
+      turnoSel.innerHTML = '<option value="">-- Selecciona --</option>';
+      const turnos = await (await fetch(`/api/turnos?periodo_id=${s.periodo_id}&semester=${s.semester}`)).json();
+      turnos.forEach(t => turnoSel.add(new Option(t.name, t.id)));
+      turnoSel.value = s.turno_id;
+      document.getElementById('edit-turno-val').value = s.turno_id;
+    }
+
+    // ── Grupo ────────────────────────────────────────────────────────────────
+    if (grupoSelect.value) {
+      lockField('edit-grupo-sel', 'edit-grupo-txt', 'edit-grupo-val',
+                grupoSelect.options[grupoSelect.selectedIndex].text.toUpperCase(), grupoSelect.value);
+    } else {
+      unlockField('edit-grupo-sel', 'edit-grupo-txt');
+      const effectiveTurno = turnoSelect.value || s.turno_id;
+      await populateModalGrupos(s.periodo_id, s.semester, effectiveTurno, s.group_id);
+    }
+
+    // ── Clase ────────────────────────────────────────────────────────────────
+    document.getElementById('grade-col').style.display = 'none';
+    document.getElementById('edit-grade').value = '';
+
+    if (claseSelect.value) {
+      lockField('edit-clase-sel', 'edit-clase-txt', 'edit-clase-val',
+                claseSelect.options[claseSelect.selectedIndex].text, claseSelect.value);
+      const gd = await (await fetch(`/api/student/${studentId}?class_id=${claseSelect.value}`)).json();
+      if (!gd.error) {
+        document.getElementById('edit-grade').value = gd.grade;
+        document.getElementById('grade-col').style.display = '';
+      }
+    } else {
+      unlockField('edit-clase-sel', 'edit-clase-txt');
+      const claseSel = document.getElementById('edit-clase-sel');
+      claseSel.innerHTML = '<option value="">-- Selecciona clase --</option>';
+      const clases = await (await fetch(`/api/clases?semester=${s.semester}`)).json();
+      clases.forEach(c => claseSel.add(new Option(c.name, c.id)));
+      claseSel.value = '';
+      document.getElementById('edit-clase-val').value = '';
+    }
+
+    overlay.classList.remove('modal-hidden');
+  }
+
+  function closeModal() {
+    overlay.classList.add('modal-hidden');
+  }
+
+  // Modal turno select → reload grupo options
+  document.getElementById('edit-turno-sel').addEventListener('change', async function () {
+    document.getElementById('edit-turno-val').value = this.value;
+    const periodoId = document.getElementById('edit-periodo-val').value;
+    const semester  = document.getElementById('edit-semester').value;
+    await populateModalGrupos(periodoId, semester, this.value, null);
+  });
+
+  // Modal grupo select → keep hidden val in sync
+  document.getElementById('edit-grupo-sel').addEventListener('change', function () {
+    document.getElementById('edit-grupo-val').value = this.value;
+  });
+
+  // Modal clase select → keep hidden val in sync + show/fetch grade
+  document.getElementById('edit-clase-sel').addEventListener('change', async function () {
+    document.getElementById('edit-clase-val').value = this.value;
+    const gradeRow   = document.getElementById('grade-col');
+    const gradeInput = document.getElementById('edit-grade');
+    if (this.value) {
+      const studentId = document.getElementById('edit-student-id').value;
+      const s = await (await fetch(`/api/student/${studentId}?class_id=${this.value}`)).json();
+      gradeInput.value = s.error ? '' : s.grade;
+      gradeRow.style.display = '';
+    } else {
+      gradeRow.style.display = 'none';
+      gradeInput.value = '';
+    }
+  });
+
+  document.getElementById('cancel-btn').addEventListener('click', closeModal);
+  overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(); });
+
+  document.getElementById('edit-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const studentId = document.getElementById('edit-student-id').value;
+    const claseId   = document.getElementById('edit-clase-val').value;
+    const body = {
+      name:     document.getElementById('edit-name').value.trim(),
+      lastname: document.getElementById('edit-lastname').value.trim(),
+      group_id: parseInt(document.getElementById('edit-grupo-val').value),
+    };
+    if (claseId) {
+      body.class_id = parseInt(claseId);
+      body.grade    = parseInt(document.getElementById('edit-grade').value);
+    }
+    const res = await fetch(`/api/student/${studentId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    if (res.ok) {
+      closeModal();
+      fetchStudents();
+    }
+  });
+</script>
+{% endblock %}

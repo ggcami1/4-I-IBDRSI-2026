@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+
+{% block header %}
+  <h1>{% block title %}Recuperar Cuenta{% endblock %}</h1>
+{% endblock %}
+
+{% block content %}
+<p>Ingresa tu nombre de usuario y el código actual de Google Authenticator para restablecer tu contraseña.</p>
+
+<form method="post">
+  <label for="username">Usuario</label>
+  <input name="username" id="username" required autofocus>
+  <label for="code">Código de autenticación</label>
+  <input id="code" name="code" placeholder="Código de 6 dígitos" maxlength="8"
+         inputmode="numeric" autocomplete="one-time-code" required>
+  <input type="submit" value="Verificar">
+</form>
+
+<p style="margin-top:1rem;">
+  <a href="{{ url_for('auth.login') }}">Volver al inicio de sesión</a>
+</p>
+{% endblock %}

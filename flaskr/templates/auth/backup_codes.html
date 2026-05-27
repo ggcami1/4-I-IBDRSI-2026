@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+
+{% block header %}
+  <h1>{% block title %}Códigos de Respaldo{% endblock %}</h1>
+{% endblock %}
+
+{% block content %}
+<div class="flash">
+  <strong>Guarda estos códigos en un lugar seguro.</strong>
+  Cada uno puede usarse una sola vez si pierdes acceso a tu teléfono.
+  No se mostrarán de nuevo.
+</div>
+
+<ul style="font-family:monospace; font-size:1.15em; line-height:2.2; list-style:none; padding:0;">
+  {% for code in codes %}
+    <li style="background:#f4f8fb; padding:0.3rem 1rem; margin-bottom:0.3rem; border-radius:4px; display:inline-block; width:100%;">{{ code }}</li>
+  {% endfor %}
+</ul>
+
+<p style="margin-top:1.5rem;">
+  <a href="{{ url_for('index') }}">Continuar al inicio</a>
+</p>
+{% endblock %}
