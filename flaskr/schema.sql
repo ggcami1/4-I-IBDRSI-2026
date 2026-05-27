@@ -20,7 +20,8 @@ CREATE TABLE user (
   username TEXT UNIQUE NOT NULL,
   password TEXT NOT NULL,
   totp_secret TEXT,
-  totp_enabled INTEGER DEFAULT 0
+  totp_enabled INTEGER DEFAULT 0,
+  role TEXT NOT NULL DEFAULT 'teacher'
 );
 
 CREATE TABLE backup_code (

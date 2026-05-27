@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+
+{% block header %}
+  <h1>{% block title %}Turnos{% endblock %}</h1>
+{% endblock %}
+
+{% block content %}
+<div class="mgmt-layout">
+
+  <div class="mgmt-list">
+    <table class="mgmt-table">
+      <thead>
+        <tr>
+          <th>Turno</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in shifts %}
+          <tr>
+            <td>{{ s['name'] }}</td>
+          </tr>
+        {% else %}
+          <tr><td>No hay turnos registrados.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="mgmt-form">
+    <h3>Agregar Turno</h3>
+    <form method="post">
+      <label for="name">Nombre del turno</label>
+      <input type="text" name="name" id="name" placeholder="ej. NOCTURNO" required>
+      <button type="submit">Agregar</button>
+    </form>
+  </div>
+
+</div>
+{% endblock %}

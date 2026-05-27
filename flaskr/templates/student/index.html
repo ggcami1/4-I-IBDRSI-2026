@@ -115,6 +115,8 @@
 </div>
 
 <script>
+  const USER_ROLE = '{{ g.user["role"] }}';
+
   const periodoSelect = document.getElementById('periodo');
   const semSelect     = document.getElementById('semestre');
   const turnoSelect   = document.getElementById('turno');
@@ -298,9 +300,13 @@
     document.getElementById('edit-semester').value         = s.semester;
 
     // ── Turno ────────────────────────────────────────────────────────────────
-    if (turnoSelect.value) {
-      lockField('edit-turno-sel', 'edit-turno-txt', 'edit-turno-val',
-                turnoSelect.options[turnoSelect.selectedIndex].text, turnoSelect.value);
+    // Teachers always see locked fields; admins follow the filter state
+    if (USER_ROLE !== 'admin' || turnoSelect.value) {
+      const turnoText = turnoSelect.value
+        ? turnoSelect.options[turnoSelect.selectedIndex].text
+        : s.turno;
+      const turnoVal = turnoSelect.value || s.turno_id;
+      lockField('edit-turno-sel', 'edit-turno-txt', 'edit-turno-val', turnoText, turnoVal);
     } else {
       unlockField('edit-turno-sel', 'edit-turno-txt');
       const turnoSel = document.getElementById('edit-turno-sel');
@@ -312,9 +318,12 @@
     }
 
     // ── Grupo ────────────────────────────────────────────────────────────────
-    if (grupoSelect.value) {
-      lockField('edit-grupo-sel', 'edit-grupo-txt', 'edit-grupo-val',
-                grupoSelect.options[grupoSelect.selectedIndex].text.toUpperCase(), grupoSelect.value);
+    if (USER_ROLE !== 'admin' || grupoSelect.value) {
+      const grupoText = grupoSelect.value
+        ? grupoSelect.options[grupoSelect.selectedIndex].text.toUpperCase()
+        : s.grupo.toUpperCase();
+      const grupoVal = grupoSelect.value || s.group_id;
+      lockField('edit-grupo-sel', 'edit-grupo-txt', 'edit-grupo-val', grupoText, grupoVal);
     } else {
       unlockField('edit-grupo-sel', 'edit-grupo-txt');
       const effectiveTurno = turnoSelect.value || s.turno_id;
@@ -325,7 +334,7 @@
     document.getElementById('grade-col').style.display = 'none';
     document.getElementById('edit-grade').value = '';
 
-    if (claseSelect.value) {
+    if (USER_ROLE === 'admin' && claseSelect.value) {
       lockField('edit-clase-sel', 'edit-clase-txt', 'edit-clase-val',
                 claseSelect.options[claseSelect.selectedIndex].text, claseSelect.value);
       const gd = await (await fetch(`/api/student/${studentId}?class_id=${claseSelect.value}`)).json();
@@ -339,8 +348,19 @@
       claseSel.innerHTML = '<option value="">-- Selecciona clase --</option>';
       const clases = await (await fetch(`/api/clases?semester=${s.semester}`)).json();
       clases.forEach(c => claseSel.add(new Option(c.name, c.id)));
-      claseSel.value = '';
-      document.getElementById('edit-clase-val').value = '';
+      // Pre-select if the filter already has a clase chosen
+      if (claseSelect.value) {
+        claseSel.value = claseSelect.value;
+        document.getElementById('edit-clase-val').value = claseSelect.value;
+        const gd = await (await fetch(`/api/student/${studentId}?class_id=${claseSelect.value}`)).json();
+        if (!gd.error) {
+          document.getElementById('edit-grade').value = gd.grade;
+          document.getElementById('grade-col').style.display = '';
+        }
+      } else {
+        claseSel.value = '';
+        document.getElementById('edit-clase-val').value = '';
+      }
     }
 
     overlay.classList.remove('modal-hidden');
@@ -389,8 +409,10 @@
     const body = {
       name:     document.getElementById('edit-name').value.trim(),
       lastname: document.getElementById('edit-lastname').value.trim(),
-      group_id: parseInt(document.getElementById('edit-grupo-val').value),
     };
+    if (USER_ROLE === 'admin') {
+      body.group_id = parseInt(document.getElementById('edit-grupo-val').value);
+    }
     if (claseId) {
       body.class_id = parseInt(claseId);
       body.grade    = parseInt(document.getElementById('edit-grade').value);

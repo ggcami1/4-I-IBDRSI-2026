@@ -17,10 +17,22 @@ bp = Blueprint('auth', __name__, url_prefix='/auth')
 
 @bp.route('/register', methods=('GET', 'POST'))
 def register():
+    db = get_db()
+    user_count = db.execute('SELECT COUNT(*) FROM user').fetchone()[0]
+
+    # Allow access only if no users exist yet OR logged-in admin
+    if user_count > 0:
+        if g.user is None:
+            return redirect(url_for('auth.login'))
+        if g.user['role'] != 'admin':
+            flash('Solo administradores pueden registrar nuevos usuarios.')
+            return redirect(url_for('index'))
+
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
-        db = get_db()
+        # First-ever user is always admin; afterwards respect the form value
+        role = 'admin' if user_count == 0 else request.form.get('role', 'teacher')
         error = None
 
         if not username:
@@ -31,18 +43,19 @@ def register():
         if error is None:
             try:
                 db.execute(
-                    "INSERT INTO user (username, password) VALUES (?, ?)",
-                    (username, generate_password_hash(password)),
+                    "INSERT INTO user (username, password, role) VALUES (?, ?, ?)",
+                    (username, generate_password_hash(password), role),
                 )
                 db.commit()
             except db.IntegrityError:
                 error = f"El usuario {username} ya está registrado."
             else:
-                return redirect(url_for("auth.login"))
+                flash(f"Usuario {username} registrado como {role}.")
+                return redirect(url_for('auth.register') if g.user else url_for('auth.login'))
 
         flash(error)
 
-    return render_template('auth/register.html')
+    return render_template('auth/register.html', first_user=(user_count == 0))
 
 
 @bp.route('/login', methods=('GET', 'POST'))
@@ -96,6 +109,18 @@ def login_required(view):
     def wrapped_view(**kwargs):
         if g.user is None:
             return redirect(url_for('auth.login'))
+        return view(**kwargs)
+    return wrapped_view
+
+
+def admin_required(view):
+    @functools.wraps(view)
+    def wrapped_view(**kwargs):
+        if g.user is None:
+            return redirect(url_for('auth.login'))
+        if g.user['role'] != 'admin':
+            flash('Se requieren permisos de administrador.')
+            return redirect(url_for('index'))
         return view(**kwargs)
     return wrapped_view
 

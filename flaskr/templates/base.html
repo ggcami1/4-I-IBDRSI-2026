@@ -1,19 +1,51 @@
 <!doctype html>
-<title>{% block title %}{% endblock %} -Sistema de Calificaciones</title>
+<title>{% block title %}{% endblock %} - Sistema de Calificaciones</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 <nav>
   <h1>Sistema de Calificaciones</h1>
   <ul>
     {% if g.user %}
-      <li><span>{{ g.user['username'] }}</span>
-      <li><a href="{{ url_for('auth.setup_2fa') }}">2FA</a>
-      <li><a href="{{ url_for('auth.logout') }}">Cerrar Sesión</a>
+      <li><span>{{ g.user['username'] }}</span></li>
+      <li><a href="{{ url_for('auth.setup_2fa') }}">2FA</a></li>
+      <li><a href="{{ url_for('auth.logout') }}">Cerrar Sesión</a></li>
     {% else %}
-      <li><a href="{{ url_for('auth.register') }}">Registrarse</a>
-      <li><a href="{{ url_for('auth.login') }}">Iniciar Sesión</a>
+      <li><a href="{{ url_for('auth.register') }}">Registrarse</a></li>
+      <li><a href="{{ url_for('auth.login') }}">Iniciar Sesión</a></li>
     {% endif %}
   </ul>
 </nav>
+
+{% if g.user %}
+<div class="tabs">
+  <a href="{{ url_for('student.index') }}"
+     class="{{ 'active' if request.endpoint == 'student.index' else '' }}">
+    Estudiantes
+  </a>
+  {% if g.user['role'] == 'admin' %}
+    <a href="{{ url_for('student.register_student') }}"
+       class="{{ 'active' if request.endpoint == 'student.register_student' else '' }}">
+      Registrar Alumno
+    </a>
+    <a href="{{ url_for('student.groups') }}"
+       class="{{ 'active' if request.endpoint == 'student.groups' else '' }}">
+      Grupos
+    </a>
+    <a href="{{ url_for('student.classes') }}"
+       class="{{ 'active' if request.endpoint == 'student.classes' else '' }}">
+      Clases
+    </a>
+    <a href="{{ url_for('student.shifts') }}"
+       class="{{ 'active' if request.endpoint == 'student.shifts' else '' }}">
+      Turnos
+    </a>
+    <a href="{{ url_for('auth.register') }}"
+       class="{{ 'active' if request.endpoint == 'auth.register' else '' }}">
+      Usuarios
+    </a>
+  {% endif %}
+</div>
+{% endif %}
+
 <section class="content">
   <header>
     {% block header %}{% endblock %}
