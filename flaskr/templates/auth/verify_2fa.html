@@ -1,3 +1,6 @@
+{# Pantalla de verificación del segundo factor de autenticación.
+   Se muestra después del login cuando el usuario tiene 2FA activo.
+   Acepta tanto un código TOTP de 6 dígitos como un código de respaldo de 8 caracteres. #}
 {% extends 'base.html' %}
 
 {% block header %}
@@ -9,6 +12,7 @@
 
 <form method="post">
   <label for="code">Código</label>
+  {# maxlength=8 permite ingresar tanto códigos TOTP (6) como de respaldo (8) #}
   <input id="code" name="code" placeholder="Código de 6 dígitos" maxlength="8"
          inputmode="numeric" autocomplete="one-time-code" required autofocus>
   <input type="submit" value="Verificar">

@@ -1,3 +1,7 @@
+{# Página de gestión de clases (materias).
+   Muestra todas las clases ordenadas por semestre con opciones de editar y eliminar.
+   Un formulario lateral permite agregar nuevas clases.
+   Solo accesible para administradores y control escolar. #}
 {% extends 'base.html' %}
 
 {% block header %}
@@ -7,12 +11,14 @@
 {% block content %}
 <div class="mgmt-layout">
 
+  {# Tabla de clases con botones de acción por fila #}
   <div class="mgmt-list">
     <table class="mgmt-table">
       <thead>
         <tr>
           <th>Clase</th>
           <th>Semestre</th>
+          <th></th>
         </tr>
       </thead>
       <tbody>
@@ -20,14 +26,28 @@
           <tr>
             <td>{{ c['name'] }}</td>
             <td>{{ c['semester'] }}</td>
+            <td style="white-space:nowrap">
+              <button class="btn-edit"
+                      data-id="{{ c['id'] }}"
+                      data-name="{{ c['name'] }}"
+                      data-semester="{{ c['semester'] }}">
+                Editar
+              </button>
+              <button class="btn-del"
+                      data-id="{{ c['id'] }}"
+                      data-name="{{ c['name'] }}">
+                Eliminar
+              </button>
+            </td>
           </tr>
         {% else %}
-          <tr><td colspan="2">No hay clases registradas.</td></tr>
+          <tr><td colspan="3">No hay clases registradas.</td></tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
 
+  {# Formulario para agregar una nueva clase #}
   <div class="mgmt-form">
     <h3>Agregar Clase</h3>
     <form method="post">
@@ -47,4 +67,104 @@
   </div>
 
 </div>
+
+{# Modal de edición de clase #}
+<div id="modal-overlay" class="modal-hidden">
+  <div class="modal">
+    <h2>Editar Clase</h2>
+    <form id="edit-form">
+      <input type="hidden" id="edit-id">
+
+      <div class="form-row">
+        <div class="form-col">
+          <label>Nombre</label>
+          <input type="text" id="edit-name" required>
+        </div>
+        <div class="form-col">
+          <label>Semestre</label>
+          <select id="edit-semester" required>
+            {% for n in range(1, 7) %}
+              <option value="{{ n }}">Semestre {{ n }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button type="submit" class="btn-save">Guardar</button>
+        <button type="button" id="cancel-btn" class="btn-cancel">Cancelar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<style>
+  .btn-edit {
+    padding: 0.25rem 0.7rem;
+    background: #377ba8;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.82em;
+    margin-right: 0.3rem;
+  }
+  .btn-edit:hover { background: #2a5d80; }
+  .btn-del {
+    padding: 0.25rem 0.7rem;
+    background: #c0392b;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.82em;
+  }
+  .btn-del:hover { background: #922b21; }
+</style>
+
+<script>
+  const overlay = document.getElementById('modal-overlay');
+
+  // ── Abrir modal de edición ────────────────────────────────────────────────
+
+  document.querySelectorAll('.btn-edit').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.getElementById('edit-id').value       = btn.dataset.id;
+      document.getElementById('edit-name').value     = btn.dataset.name;
+      document.getElementById('edit-semester').value = btn.dataset.semester;
+      overlay.classList.remove('modal-hidden');
+    });
+  });
+
+  // ── Guardar cambios ───────────────────────────────────────────────────────
+
+  document.getElementById('edit-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const id = document.getElementById('edit-id').value;
+    const res = await fetch(`/api/clase/${id}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name:     document.getElementById('edit-name').value.trim(),
+        semester: parseInt(document.getElementById('edit-semester').value),
+      })
+    });
+    if (res.ok) location.reload();
+  });
+
+  // ── Eliminar clase ────────────────────────────────────────────────────────
+
+  document.querySelectorAll('.btn-del').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (!confirm(`¿Eliminar la clase "${btn.dataset.name}"? Se borrarán todas las calificaciones asociadas.`)) return;
+      const res = await fetch(`/api/clase/${btn.dataset.id}/delete`, { method: 'POST' });
+      if (res.ok) location.reload();
+    });
+  });
+
+  // ── Cerrar modal ──────────────────────────────────────────────────────────
+
+  document.getElementById('cancel-btn').addEventListener('click', () => overlay.classList.add('modal-hidden'));
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.classList.add('modal-hidden'); });
+</script>
 {% endblock %}

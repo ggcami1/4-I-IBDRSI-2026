@@ -1,0 +1,254 @@
+{# Página de gestión de usuarios del sistema.
+   Admin ve todos los usuarios y puede editar, desactivar y eliminar cualquier cuenta.
+   Control_escolar ve solo usuarios docente/control_escolar y puede editar su info,
+   pero no puede asignar el rol admin ni desactivar/eliminar cuentas. #}
+{% extends 'base.html' %}
+
+{% block header %}
+  <h1>{% block title %}Usuarios Activos{% endblock %}</h1>
+{% endblock %}
+
+{% block content %}
+
+{# Tabla de usuarios #}
+<table class="students-table" id="users-table">
+  <thead>
+    <tr>
+      <th>Nombre</th>
+      <th>Usuario</th>
+      <th>Correo</th>
+      <th>Rol</th>
+      <th>Estado</th>
+      <th>Último acceso</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for u in users %}
+      <tr class="clickable-row {{ 'user-inactive' if not u['activo'] else '' }}"
+          data-user-id="{{ u['id'] }}">
+        <td>{{ u['nombre'] }} {{ u['apellido'] }}</td>
+        <td>{{ u['username'] }}</td>
+        <td>{{ u['email'] }}</td>
+        <td>{{ u['rol'] }}</td>
+        <td>
+          {% if u['activo'] %}
+            <span class="badge badge-active">Activo</span>
+          {% else %}
+            <span class="badge badge-inactive">Inactivo</span>
+          {% endif %}
+        </td>
+        <td>{{ u['ultimo_login'] or '—' }}</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="6">No hay usuarios registrados.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{# Modal de edición de usuario #}
+<div id="modal-overlay" class="modal-hidden">
+  <div class="modal">
+    <h2>Editar Usuario</h2>
+    <form id="edit-form">
+      <input type="hidden" id="edit-user-id">
+
+      {# Fila 1: nombre y apellido #}
+      <div class="form-row">
+        <div class="form-col">
+          <label>Nombre</label>
+          <input type="text" id="edit-nombre" required>
+        </div>
+        <div class="form-col">
+          <label>Apellido</label>
+          <input type="text" id="edit-apellido" required>
+        </div>
+      </div>
+
+      {# Fila 2: correo y nombre de usuario #}
+      <div class="form-row">
+        <div class="form-col">
+          <label>Correo electrónico</label>
+          <input type="email" id="edit-email" required>
+        </div>
+        <div class="form-col">
+          <label>Usuario</label>
+          <input type="text" id="edit-username" required>
+        </div>
+      </div>
+
+      {# Fila 3: rol y estado.
+         El rol se muestra como texto bloqueado cuando el usuario editado es admin. #}
+      <div class="form-row">
+        <div class="form-col">
+          <label>Rol</label>
+          <select id="edit-rol">
+            {% for value, label in rol_opciones %}
+              <option value="{{ value }}">{{ label }}</option>
+            {% endfor %}
+          </select>
+          <input type="text" id="edit-rol-txt" readonly class="modal-hidden">
+        </div>
+        <div class="form-col" id="estado-col">
+          <label>Estado</label>
+          <span id="edit-estado-badge"></span>
+        </div>
+      </div>
+
+      {# Botones de acción #}
+      <div class="modal-actions">
+        <button type="submit" class="btn-save">Guardar</button>
+        {# Botones solo visibles para admin #}
+        <button type="button" id="toggle-btn" class="btn-warning admin-only" style="display:none">
+          Desactivar
+        </button>
+        <button type="button" id="delete-btn" class="btn-danger admin-only" style="display:none">
+          Eliminar
+        </button>
+        <button type="button" id="cancel-btn" class="btn-cancel">Cancelar</button>
+      </div>
+
+      {# Mensaje de error del servidor #}
+      <p id="modal-error" style="color:#c0392b; margin-top:0.5rem; display:none"></p>
+    </form>
+  </div>
+</div>
+
+<script>
+  // Rol del usuario actual para controlar qué botones se muestran.
+  const IS_ADMIN = {{ 'true' if g.user['rol'] == 'admin' else 'false' }};
+
+  const overlay   = document.getElementById('modal-overlay');
+  const errorMsg  = document.getElementById('modal-error');
+
+  // ── Abrir modal al hacer clic en una fila ────────────────────────────────────
+
+  document.getElementById('users-table').addEventListener('click', async e => {
+    const row = e.target.closest('tr[data-user-id]');
+    if (!row) return;
+    await openModal(row.dataset.userId);
+  });
+
+  async function openModal(userId) {
+    errorMsg.style.display = 'none';
+
+    const res = await fetch(`/auth/api/usuario/${userId}`);
+    if (!res.ok) return;
+    const u = await res.json();
+
+    document.getElementById('edit-user-id').value   = userId;
+    document.getElementById('edit-nombre').value    = u.nombre;
+    document.getElementById('edit-apellido').value  = u.apellido;
+    document.getElementById('edit-email').value     = u.email;
+    document.getElementById('edit-username').value  = u.username;
+
+    // El rol de un administrador no puede cambiarse: se muestra como texto bloqueado.
+    const rolSel = document.getElementById('edit-rol');
+    const rolTxt = document.getElementById('edit-rol-txt');
+    if (u.rol === 'admin') {
+      rolSel.classList.add('modal-hidden');
+      rolTxt.classList.remove('modal-hidden');
+      rolTxt.value = 'Administrador';
+    } else {
+      rolSel.classList.remove('modal-hidden');
+      rolTxt.classList.add('modal-hidden');
+      rolSel.value = u.rol;
+    }
+
+    // Muestra la insignia de estado actual
+    const badge = document.getElementById('edit-estado-badge');
+    badge.className = 'badge ' + (u.activo ? 'badge-active' : 'badge-inactive');
+    badge.textContent = u.activo ? 'Activo' : 'Inactivo';
+
+    // Botones de admin solo se muestran si el usuario logueado es admin
+    // y no está editando su propia cuenta.
+    const currentUserId = {{ g.user['id'] }};
+    const isSelf = parseInt(userId) === currentUserId;
+
+    const toggleBtn = document.getElementById('toggle-btn');
+    const deleteBtn = document.getElementById('delete-btn');
+
+    if (IS_ADMIN && !isSelf) {
+      toggleBtn.style.display = '';
+      deleteBtn.style.display = '';
+      toggleBtn.textContent = u.activo ? 'Desactivar' : 'Activar';
+      // Guarda el estado actual para actualizar el botón sin recargar.
+      toggleBtn.dataset.activo = u.activo ? '1' : '0';
+    } else {
+      toggleBtn.style.display = 'none';
+      deleteBtn.style.display = 'none';
+    }
+
+    overlay.classList.remove('modal-hidden');
+  }
+
+  function closeModal() {
+    overlay.classList.add('modal-hidden');
+  }
+
+  // ── Guardar cambios ──────────────────────────────────────────────────────────
+
+  document.getElementById('edit-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    errorMsg.style.display = 'none';
+    const userId = document.getElementById('edit-user-id').value;
+
+    const res = await fetch(`/auth/api/usuario/${userId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        nombre:   document.getElementById('edit-nombre').value.trim(),
+        apellido: document.getElementById('edit-apellido').value.trim(),
+        email:    document.getElementById('edit-email').value.trim(),
+        username: document.getElementById('edit-username').value.trim(),
+        rol:      document.getElementById('edit-rol').value,
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      errorMsg.textContent = data.error;
+      errorMsg.style.display = '';
+      return;
+    }
+    closeModal();
+    location.reload();  // Refresca la tabla para mostrar los cambios
+  });
+
+  // ── Desactivar / Activar ─────────────────────────────────────────────────────
+
+  document.getElementById('toggle-btn').addEventListener('click', async () => {
+    const userId = document.getElementById('edit-user-id').value;
+    const res = await fetch(`/auth/api/usuario/${userId}/toggle`, { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) {
+      errorMsg.textContent = data.error;
+      errorMsg.style.display = '';
+      return;
+    }
+    closeModal();
+    location.reload();
+  });
+
+  // ── Eliminar ─────────────────────────────────────────────────────────────────
+
+  document.getElementById('delete-btn').addEventListener('click', async () => {
+    const userId   = document.getElementById('edit-user-id').value;
+    const username = document.getElementById('edit-username').value;
+    if (!confirm(`¿Eliminar al usuario "${username}"? Esta acción no se puede deshacer.`)) return;
+
+    const res = await fetch(`/auth/api/usuario/${userId}/delete`, { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) {
+      errorMsg.textContent = data.error;
+      errorMsg.style.display = '';
+      return;
+    }
+    closeModal();
+    location.reload();
+  });
+
+  // ── Cerrar modal ─────────────────────────────────────────────────────────────
+
+  document.getElementById('cancel-btn').addEventListener('click', closeModal);
+  overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(); });
+</script>
+{% endblock %}

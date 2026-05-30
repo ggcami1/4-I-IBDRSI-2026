@@ -1,3 +1,6 @@
+{# Pantalla de códigos de respaldo generados al activar el 2FA.
+   Cada código es de un solo uso y sirve para acceder si se pierde el teléfono.
+   Esta es la ÚNICA vez que se muestran; el usuario debe guardarlos de inmediato. #}
 {% extends 'base.html' %}
 
 {% block header %}
@@ -5,12 +8,14 @@
 {% endblock %}
 
 {% block content %}
+{# Advertencia destacada: los códigos no se mostrarán de nuevo después de cerrar esta página #}
 <div class="flash">
   <strong>Guarda estos códigos en un lugar seguro.</strong>
   Cada uno puede usarse una sola vez si pierdes acceso a tu teléfono.
   No se mostrarán de nuevo.
 </div>
 
+{# Lista de 8 códigos hexadecimales en mayúsculas, generados con secrets.token_hex #}
 <ul style="font-family:monospace; font-size:1.15em; line-height:2.2; list-style:none; padding:0;">
   {% for code in codes %}
     <li style="background:#f4f8fb; padding:0.3rem 1rem; margin-bottom:0.3rem; border-radius:4px; display:inline-block; width:100%;">{{ code }}</li>

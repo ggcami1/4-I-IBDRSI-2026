@@ -1,0 +1,127 @@
+{# Reporte de auditoría — exclusivo para administradores.
+   Dos secciones: Accesos (login_logs) y Cambios en datos (audit_logs).
+   15 registros por página, columnas ordenables con clic (asc/desc). #}
+{% extends 'base.html' %}
+
+{% block header %}
+  <h1>{% block title %}Auditoría{% endblock %}</h1>
+{% endblock %}
+
+{# Macro: genera un <th> enlazable que alterna el orden al hacer clic.
+   Si la columna ya está activa, el icono muestra la dirección actual y
+   el enlace invierte el orden. Si no está activa, ordena ascendente por defecto. #}
+{% macro th(col, label) %}
+  {% if sort_col == col %}
+    {% set next_order = 'asc' if sort_order == 'desc' else 'desc' %}
+    {% set icon = '▲' if sort_order == 'asc' else '▼' %}
+  {% else %}
+    {% set next_order = 'asc' %}
+    {% set icon = '' %}
+  {% endif %}
+  <th>
+    <a href="{{ url_for('auth.auditoria', tab=tab, page=1, sort=col, order=next_order) }}"
+       style="color:white; text-decoration:none; white-space:nowrap">
+      {{ label }}{% if icon %} {{ icon }}{% endif %}
+    </a>
+  </th>
+{% endmacro %}
+
+{% block content %}
+
+{# Pestañas internas de la página #}
+<div class="tabs" style="margin-top:0">
+  <a href="{{ url_for('auth.auditoria', tab='accesos') }}"
+     class="{{ 'active' if tab == 'accesos' else '' }}">
+    Accesos
+  </a>
+  <a href="{{ url_for('auth.auditoria', tab='cambios') }}"
+     class="{{ 'active' if tab == 'cambios' else '' }}">
+    Cambios en datos
+  </a>
+</div>
+
+{# ── Tabla de accesos ──────────────────────────────────────────────────────── #}
+{% if tab == 'accesos' %}
+<table class="students-table">
+  <thead>
+    <tr>
+      {{ th('fecha',   'Fecha') }}
+      {{ th('usuario', 'Usuario') }}
+      {{ th('evento',  'Evento') }}
+      {{ th('ip',      'IP') }}
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in rows %}
+      <tr>
+        <td style="white-space:nowrap">{{ r['fecha'] }}</td>
+        <td>{{ r['usuario'] }}</td>
+        <td>
+          <span class="badge {% if r['evento'] == 'LOGIN_OK' %}badge-active{% else %}badge-inactive{% endif %}">
+            {{ r['evento'] }}
+          </span>
+        </td>
+        <td>{{ r['ip'] or '—' }}</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="4">No hay registros de acceso.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{# ── Tabla de cambios en datos ──────────────────────────────────────────────── #}
+{% else %}
+<table class="students-table">
+  <thead>
+    <tr>
+      {{ th('fecha',          'Fecha') }}
+      {{ th('usuario',        'Usuario') }}
+      {{ th('tabla_afectada', 'Tabla') }}
+      {{ th('registro_id',    'ID') }}
+      {{ th('accion',         'Acción') }}
+      <th>Datos anteriores</th>
+      <th>Datos nuevos</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in rows %}
+      <tr>
+        <td style="white-space:nowrap">{{ r['fecha'] }}</td>
+        <td>{{ r['usuario'] }}</td>
+        <td>{{ r['tabla_afectada'] }}</td>
+        <td>{{ r['registro_id'] }}</td>
+        <td>
+          <span class="badge {% if r['accion'] == 'INSERT' %}badge-active{% else %}badge-inactive{% endif %}">
+            {{ r['accion'] }}
+          </span>
+        </td>
+        <td style="font-family:monospace;font-size:0.78em;max-width:180px;word-break:break-all">
+          {{ r['datos_anteriores'] or '—' }}
+        </td>
+        <td style="font-family:monospace;font-size:0.78em;max-width:180px;word-break:break-all">
+          {{ r['datos_nuevos'] or '—' }}
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="7">No hay registros de cambios.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+{# ── Paginación ──────────────────────────────────────────────────────────────── #}
+{% set total_pages = ((total - 1) // per_page + 1) if total else 1 %}
+<div class="pagination">
+  <button onclick="goPage({{ page - 1 }})" {% if page <= 1 %}disabled{% endif %}>&#8592; Anterior</button>
+  <span>{{ page }} / {{ total_pages }} &nbsp;({{ total }} registros)</span>
+  <button onclick="goPage({{ page + 1 }})" {% if page >= total_pages %}disabled{% endif %}>Siguiente &#8594;</button>
+</div>
+
+<script>
+  function goPage(p) {
+    const url = new URL(location.href);
+    url.searchParams.set('page', p);
+    location.href = url.toString();
+  }
+</script>
+{% endblock %}

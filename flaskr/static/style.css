@@ -336,6 +336,46 @@ input[type=submit] {
 
 .btn-cancel:hover { background: #c8c8c8; }
 
+.btn-danger {
+  padding: 0.45rem 1.2rem;
+  background: #c0392b;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9em;
+}
+
+.btn-danger:hover { background: #922b21; }
+
+.btn-warning {
+  padding: 0.45rem 1.2rem;
+  background: #e67e22;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9em;
+}
+
+.btn-warning:hover { background: #b9770e; }
+
+/* Estado activo/inactivo del usuario */
+.badge {
+  display: inline-block;
+  padding: 0.18rem 0.6rem;
+  border-radius: 10px;
+  font-size: 0.78em;
+  font-weight: bold;
+  letter-spacing: 0.03em;
+}
+
+.badge-active   { background: #d4edda; color: #155724; }
+.badge-inactive { background: #f8d7da; color: #721c24; }
+
+/* Filas de usuarios inactivos aparecen atenuadas */
+tr.user-inactive td { opacity: 0.55; }
+
 /* ── Tabs ──────────────────────────────────────────────── */
 .tabs {
   display: flex;

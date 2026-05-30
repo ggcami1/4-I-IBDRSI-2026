@@ -1,3 +1,7 @@
+{# Página de gestión de turnos.
+   Muestra los turnos con su rango horario y botones de editar/eliminar por fila.
+   No se puede eliminar un turno que tenga grupos asignados.
+   Solo accesible para administradores y control escolar. #}
 {% extends 'base.html' %}
 
 {% block header %}
@@ -7,33 +11,175 @@
 {% block content %}
 <div class="mgmt-layout">
 
+  {# Tabla de turnos con rango horario y acciones #}
   <div class="mgmt-list">
     <table class="mgmt-table">
       <thead>
         <tr>
           <th>Turno</th>
+          <th>Hora inicio</th>
+          <th>Hora fin</th>
+          <th></th>
         </tr>
       </thead>
       <tbody>
         {% for s in shifts %}
           <tr>
             <td>{{ s['name'] }}</td>
+            <td>{{ s['hora_inicio'] or '—' }}</td>
+            <td>{{ s['hora_fin']    or '—' }}</td>
+            <td style="white-space:nowrap">
+              <button class="btn-edit"
+                      data-id="{{ s['id'] }}"
+                      data-name="{{ s['name'] }}"
+                      data-inicio="{{ s['hora_inicio'] or '' }}"
+                      data-fin="{{ s['hora_fin'] or '' }}">
+                Editar
+              </button>
+              <button class="btn-del"
+                      data-id="{{ s['id'] }}"
+                      data-name="{{ s['name'] }}">
+                Eliminar
+              </button>
+            </td>
           </tr>
         {% else %}
-          <tr><td>No hay turnos registrados.</td></tr>
+          <tr><td colspan="4">No hay turnos registrados.</td></tr>
         {% endfor %}
       </tbody>
     </table>
+    <p id="del-error" style="color:#c0392b; margin-top:0.6rem; display:none"></p>
   </div>
 
+  {# Formulario para agregar un nuevo turno #}
   <div class="mgmt-form">
     <h3>Agregar Turno</h3>
     <form method="post">
       <label for="name">Nombre del turno</label>
       <input type="text" name="name" id="name" placeholder="ej. NOCTURNO" required>
+
+      <label for="hora_inicio">Hora inicio</label>
+      <input type="time" name="hora_inicio" id="hora_inicio" required>
+
+      <label for="hora_fin">Hora fin</label>
+      <input type="time" name="hora_fin" id="hora_fin" required>
+
       <button type="submit">Agregar</button>
     </form>
   </div>
 
 </div>
+
+{# Modal de edición de turno #}
+<div id="modal-overlay" class="modal-hidden">
+  <div class="modal">
+    <h2>Editar Turno</h2>
+    <form id="edit-form">
+      <input type="hidden" id="edit-id">
+
+      <div class="form-row">
+        <div class="form-col">
+          <label>Nombre</label>
+          <input type="text" id="edit-name" required>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-col">
+          <label>Hora inicio</label>
+          <input type="time" id="edit-inicio" required>
+        </div>
+        <div class="form-col">
+          <label>Hora fin</label>
+          <input type="time" id="edit-fin" required>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button type="submit" class="btn-save">Guardar</button>
+        <button type="button" id="cancel-btn" class="btn-cancel">Cancelar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<style>
+  .btn-edit {
+    padding: 0.25rem 0.7rem;
+    background: #377ba8;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.82em;
+    margin-right: 0.3rem;
+  }
+  .btn-edit:hover { background: #2a5d80; }
+  .btn-del {
+    padding: 0.25rem 0.7rem;
+    background: #c0392b;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.82em;
+  }
+  .btn-del:hover { background: #922b21; }
+</style>
+
+<script>
+  const overlay  = document.getElementById('modal-overlay');
+  const delError = document.getElementById('del-error');
+
+  // ── Abrir modal de edición ────────────────────────────────────────────────
+
+  document.querySelectorAll('.btn-edit').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.getElementById('edit-id').value     = btn.dataset.id;
+      document.getElementById('edit-name').value   = btn.dataset.name;
+      document.getElementById('edit-inicio').value = btn.dataset.inicio;
+      document.getElementById('edit-fin').value    = btn.dataset.fin;
+      overlay.classList.remove('modal-hidden');
+    });
+  });
+
+  // ── Guardar cambios ───────────────────────────────────────────────────────
+
+  document.getElementById('edit-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const id = document.getElementById('edit-id').value;
+    const res = await fetch(`/api/turno/${id}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name:        document.getElementById('edit-name').value.trim(),
+        hora_inicio: document.getElementById('edit-inicio').value,
+        hora_fin:    document.getElementById('edit-fin').value,
+      })
+    });
+    if (res.ok) location.reload();
+  });
+
+  // ── Eliminar turno ────────────────────────────────────────────────────────
+
+  document.querySelectorAll('.btn-del').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      delError.style.display = 'none';
+      if (!confirm(`¿Eliminar el turno "${btn.dataset.name}"?`)) return;
+      const res  = await fetch(`/api/turno/${btn.dataset.id}/delete`, { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) {
+        delError.textContent = data.error;
+        delError.style.display = '';
+      } else {
+        location.reload();
+      }
+    });
+  });
+
+  // ── Cerrar modal ──────────────────────────────────────────────────────────
+
+  document.getElementById('cancel-btn').addEventListener('click', () => overlay.classList.add('modal-hidden'));
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.classList.add('modal-hidden'); });
+</script>
 {% endblock %}

@@ -1,3 +1,6 @@
+{# Formulario de inicio de sesión.
+   El usuario ingresa su nombre de usuario y contraseña.
+   Si tiene 2FA activo, será redirigido a la verificación del código TOTP. #}
 {% extends 'base.html' %}
 
 {% block header %}
@@ -8,10 +11,14 @@
   <form method="post">
     <label for="username">Usuario</label>
     <input name="username" id="username" required>
+
     <label for="password">Contraseña</label>
     <input type="password" name="password" id="password" required>
+
     <input type="submit" value="Iniciar Sesión">
   </form>
+
+  {# Enlace de recuperación para usuarios que olvidaron su contraseña #}
   <p style="margin-top:1rem;">
     <a href="{{ url_for('auth.recover') }}">¿Olvidaste tu contraseña?</a>
   </p>
