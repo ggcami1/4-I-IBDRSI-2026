@@ -1,3 +1,8 @@
+{# Vista principal de alumnos.
+   Contiene cinco filtros en cascada (Periodo → Semestre → Turno → Grupo → Clase),
+   una tabla paginada con los resultados y un modal para editar datos del alumno.
+   El comportamiento del modal varía según el rol: los docentes solo pueden editar
+   nombre y calificación; los administradores también pueden cambiar el grupo. #}
 {% extends 'base.html' %}
 
 {% block header %}
@@ -5,6 +10,7 @@
 {% endblock %}
 
 {% block content %}
+{# Barra de filtros en cascada: cada dropdown habilita al siguiente #}
 <div class="filters">
   <div class="filter-item">
     <label for="periodo">Periodo</label>
@@ -45,9 +51,10 @@
   </div>
 </div>
 
+{# Contenedor donde se inyecta la tabla de alumnos y los controles de paginación #}
 <div id="results"></div>
 
-<!-- Edit modal -->
+{# Modal de edición de alumno: aparece al hacer clic en una fila de la tabla #}
 <div id="modal-overlay" class="modal-hidden">
   <div class="modal">
     <h2>Editar Estudiante</h2>
@@ -108,6 +115,10 @@
 
       <div class="modal-actions">
         <button type="submit" class="btn-save">Guardar</button>
+        {# Botón de eliminar: visible solo para admin y control_escolar #}
+        <button type="button" id="delete-student-btn" class="btn-danger" style="display:none">
+          Eliminar
+        </button>
         <button type="button" id="cancel-btn" class="btn-cancel">Cancelar</button>
       </div>
     </form>
@@ -115,6 +126,10 @@
 </div>
 
 <script>
+  // Rol del usuario actual, inyectado desde Flask para controlar el comportamiento del modal.
+  // 'admin' puede cambiar grupo; cualquier otro rol solo edita nombre y calificación.
+  const USER_ROLE = '{{ g.user["rol"] }}';
+
   const periodoSelect = document.getElementById('periodo');
   const semSelect     = document.getElementById('semestre');
   const turnoSelect   = document.getElementById('turno');
@@ -128,7 +143,9 @@
     sel.disabled = true;
   }
 
-  // ── Filter dropdown cascade ──────────────────────────────────────────────────
+  // ── Cascada de dropdowns de filtros ─────────────────────────────────────────
+  // Cada cambio deshabilita y reinicia los filtros posteriores,
+  // luego consulta la API correspondiente para cargar las nuevas opciones.
 
   periodoSelect.addEventListener('change', async () => {
     reset(semSelect,   '-- Selecciona semestre --');
@@ -179,7 +196,9 @@
   grupoSelect.addEventListener('change', () => fetchStudents());
   claseSelect.addEventListener('change', () => fetchStudents());
 
-  // ── Fetch & render students ──────────────────────────────────────────────────
+  // ── Carga y renderizado de alumnos ───────────────────────────────────────────
+  // Consulta /api/students con los filtros activos y pagina los resultados
+  // en bloques de PAGE_SIZE filas con botones Anterior / Siguiente.
 
   const PAGE_SIZE = 10;
   let allStudents = [];
@@ -245,7 +264,10 @@
     document.getElementById('next-btn').addEventListener('click', () => { currentPage++; renderPage(); });
   }
 
-  // ── Modal ────────────────────────────────────────────────────────────────────
+  // ── Modal de edición ─────────────────────────────────────────────────────────
+  // Al hacer clic en una fila se obtienen los datos del alumno vía API y se
+  // rellenan los campos del modal. Los campos de Turno/Grupo se bloquean como
+  // texto de solo lectura si el filtro ya está seleccionado o el rol no es admin.
 
   results.addEventListener('click', async e => {
     const row = e.target.closest('tr[data-student-id]');
@@ -298,9 +320,13 @@
     document.getElementById('edit-semester').value         = s.semester;
 
     // ── Turno ────────────────────────────────────────────────────────────────
-    if (turnoSelect.value) {
-      lockField('edit-turno-sel', 'edit-turno-txt', 'edit-turno-val',
-                turnoSelect.options[turnoSelect.selectedIndex].text, turnoSelect.value);
+    // Docentes siempre ven campos bloqueados; admin y control_escolar siguen el filtro
+    if (USER_ROLE === 'docente' || turnoSelect.value) {
+      const turnoText = turnoSelect.value
+        ? turnoSelect.options[turnoSelect.selectedIndex].text
+        : s.turno;
+      const turnoVal = turnoSelect.value || s.turno_id;
+      lockField('edit-turno-sel', 'edit-turno-txt', 'edit-turno-val', turnoText, turnoVal);
     } else {
       unlockField('edit-turno-sel', 'edit-turno-txt');
       const turnoSel = document.getElementById('edit-turno-sel');
@@ -312,9 +338,12 @@
     }
 
     // ── Grupo ────────────────────────────────────────────────────────────────
-    if (grupoSelect.value) {
-      lockField('edit-grupo-sel', 'edit-grupo-txt', 'edit-grupo-val',
-                grupoSelect.options[grupoSelect.selectedIndex].text.toUpperCase(), grupoSelect.value);
+    if (USER_ROLE === 'docente' || grupoSelect.value) {
+      const grupoText = grupoSelect.value
+        ? grupoSelect.options[grupoSelect.selectedIndex].text.toUpperCase()
+        : s.grupo.toUpperCase();
+      const grupoVal = grupoSelect.value || s.group_id;
+      lockField('edit-grupo-sel', 'edit-grupo-txt', 'edit-grupo-val', grupoText, grupoVal);
     } else {
       unlockField('edit-grupo-sel', 'edit-grupo-txt');
       const effectiveTurno = turnoSelect.value || s.turno_id;
@@ -325,7 +354,7 @@
     document.getElementById('grade-col').style.display = 'none';
     document.getElementById('edit-grade').value = '';
 
-    if (claseSelect.value) {
+    if (USER_ROLE !== 'docente' && claseSelect.value) {
       lockField('edit-clase-sel', 'edit-clase-txt', 'edit-clase-val',
                 claseSelect.options[claseSelect.selectedIndex].text, claseSelect.value);
       const gd = await (await fetch(`/api/student/${studentId}?class_id=${claseSelect.value}`)).json();
@@ -339,9 +368,24 @@
       claseSel.innerHTML = '<option value="">-- Selecciona clase --</option>';
       const clases = await (await fetch(`/api/clases?semester=${s.semester}`)).json();
       clases.forEach(c => claseSel.add(new Option(c.name, c.id)));
-      claseSel.value = '';
-      document.getElementById('edit-clase-val').value = '';
+      // Pre-select if the filter already has a clase chosen
+      if (claseSelect.value) {
+        claseSel.value = claseSelect.value;
+        document.getElementById('edit-clase-val').value = claseSelect.value;
+        const gd = await (await fetch(`/api/student/${studentId}?class_id=${claseSelect.value}`)).json();
+        if (!gd.error) {
+          document.getElementById('edit-grade').value = gd.grade;
+          document.getElementById('grade-col').style.display = '';
+        }
+      } else {
+        claseSel.value = '';
+        document.getElementById('edit-clase-val').value = '';
+      }
     }
+
+    // Muestra el botón de eliminar solo a admin y control_escolar.
+    document.getElementById('delete-student-btn').style.display =
+      USER_ROLE !== 'docente' ? '' : 'none';
 
     overlay.classList.remove('modal-hidden');
   }
@@ -379,6 +423,15 @@
     }
   });
 
+  document.getElementById('delete-student-btn').addEventListener('click', async () => {
+    const studentId = document.getElementById('edit-student-id').value;
+    const name = document.getElementById('edit-name').value + ' ' +
+                 document.getElementById('edit-lastname').value;
+    if (!confirm(`¿Eliminar al alumno "${name}"? Esta acción no se puede deshacer.`)) return;
+    const res = await fetch(`/api/student/${studentId}/delete`, { method: 'POST' });
+    if (res.ok) { closeModal(); fetchStudents(); }
+  });
+
   document.getElementById('cancel-btn').addEventListener('click', closeModal);
   overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(); });
 
@@ -389,8 +442,10 @@
     const body = {
       name:     document.getElementById('edit-name').value.trim(),
       lastname: document.getElementById('edit-lastname').value.trim(),
-      group_id: parseInt(document.getElementById('edit-grupo-val').value),
     };
+    if (USER_ROLE !== 'docente') {
+      body.group_id = parseInt(document.getElementById('edit-grupo-val').value);
+    }
     if (claseId) {
       body.class_id = parseInt(claseId);
       body.grade    = parseInt(document.getElementById('edit-grade').value);

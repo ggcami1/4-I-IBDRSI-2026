@@ -1,23 +1,91 @@
+{# Plantilla base del sistema.
+   Todas las páginas extienden esta plantilla. Define la barra de navegación,
+   la barra de pestañas (solo visible cuando hay sesión activa) y el área de contenido.
+   Las pestañas administrativas solo se muestran a usuarios con rol 'admin'. #}
 <!doctype html>
-<title>{% block title %}{% endblock %} -Sistema de Calificaciones</title>
+<title>{% block title %}{% endblock %} - Sistema de Control Escolar</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+
+{# Barra de navegación superior con nombre del sistema y acciones de sesión #}
 <nav>
-  <h1>Sistema de Calificaciones</h1>
+  <h1>Sistema de Control Escolar</h1>
   <ul>
     {% if g.user %}
-      <li><span>{{ g.user['username'] }}</span>
-      <li><a href="{{ url_for('auth.setup_2fa') }}">2FA</a>
-      <li><a href="{{ url_for('auth.logout') }}">Cerrar Sesión</a>
+      <li><span>{{ g.user['username'] }}</span></li>
+      <li><a href="{{ url_for('auth.setup_2fa') }}">2FA</a></li>
+      {% if g.user['rol'] == 'admin' %}
+        <li><a href="{{ url_for('auth.arquitectura') }}">Arquitectura</a></li>
+      {% endif %}
+      <li><a href="{{ url_for('auth.logout') }}">Cerrar Sesión</a></li>
     {% else %}
-      <li><a href="{{ url_for('auth.register') }}">Registrarse</a>
-      <li><a href="{{ url_for('auth.login') }}">Iniciar Sesión</a>
+      <li><a href="{{ url_for('auth.register') }}">Registrarse</a></li>
+      <li><a href="{{ url_for('auth.login') }}">Iniciar Sesión</a></li>
     {% endif %}
   </ul>
 </nav>
+
+{# Barra de pestañas: solo se renderiza cuando hay usuario autenticado.
+   Los docentes ven únicamente "Estudiantes"; admin y control_escolar ven todas las secciones.
+   Pestañas ordenadas alfabéticamente. #}
+{% if g.user %}
+<div class="tabs">
+  {% if g.user['rol'] == 'admin' %}
+    <a href="{{ url_for('auth.auditoria') }}"
+       class="{{ 'active' if request.endpoint == 'auth.auditoria' else '' }}">
+      Auditoría
+    </a>
+  {% endif %}
+  {% if g.user['rol'] in ('admin', 'control_escolar') %}
+    <a href="{{ url_for('student.classes') }}"
+       class="{{ 'active' if request.endpoint == 'student.classes' else '' }}">
+      Clases
+    </a>
+  {% endif %}
+  <a href="{{ url_for('student.index') }}"
+     class="{{ 'active' if request.endpoint == 'student.index' else '' }}">
+    Estudiantes
+  </a>
+  {% if g.user['rol'] == 'docente' %}
+    <a href="{{ url_for('student.mi_horario') }}"
+       class="{{ 'active' if request.endpoint == 'student.mi_horario' else '' }}">
+      Mi Horario
+    </a>
+  {% endif %}
+  {% if g.user['rol'] in ('admin', 'control_escolar') %}
+    <a href="{{ url_for('student.groups') }}"
+       class="{{ 'active' if request.endpoint == 'student.groups' else '' }}">
+      Grupos
+    </a>
+    <a href="{{ url_for('student.planeaciones') }}"
+       class="{{ 'active' if request.endpoint == 'student.planeaciones' else '' }}">
+      Planeaciones
+    </a>
+    <a href="{{ url_for('student.register_student') }}"
+       class="{{ 'active' if request.endpoint == 'student.register_student' else '' }}">
+      Registrar Alumno
+    </a>
+    <a href="{{ url_for('auth.register') }}"
+       class="{{ 'active' if request.endpoint == 'auth.register' else '' }}">
+      Registrar Usuario
+    </a>
+    <a href="{{ url_for('student.shifts') }}"
+       class="{{ 'active' if request.endpoint == 'student.shifts' else '' }}">
+      Turnos
+    </a>
+    <a href="{{ url_for('auth.usuarios') }}"
+       class="{{ 'active' if request.endpoint == 'auth.usuarios' else '' }}">
+      Usuarios
+    </a>
+  {% endif %}
+</div>
+{% endif %}
+
+{# Área de contenido principal: cabecera de página, mensajes flash y bloque de contenido #}
 <section class="content">
   <header>
     {% block header %}{% endblock %}
   </header>
+  {# Los mensajes flash informan al usuario sobre el resultado de acciones recientes #}
   {% for message in get_flashed_messages() %}
     <div class="flash">{{ message }}</div>
   {% endfor %}

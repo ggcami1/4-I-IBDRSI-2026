@@ -1,3 +1,7 @@
+{# Formulario de recuperación de cuenta.
+   El usuario debe proporcionar su nombre de usuario y un código TOTP válido
+   para verificar su identidad sin necesitar la contraseña olvidada.
+   Requiere que la cuenta tenga 2FA activado. #}
 {% extends 'base.html' %}
 
 {% block header %}
@@ -10,6 +14,8 @@
 <form method="post">
   <label for="username">Usuario</label>
   <input name="username" id="username" required autofocus>
+
+  {# El código TOTP actúa como segundo factor para confirmar la identidad #}
   <label for="code">Código de autenticación</label>
   <input id="code" name="code" placeholder="Código de 6 dígitos" maxlength="8"
          inputmode="numeric" autocomplete="one-time-code" required>

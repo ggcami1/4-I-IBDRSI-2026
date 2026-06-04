@@ -1,0 +1,412 @@
+{# Página de planeaciones escolares.
+   Permite relacionar grupos, materias y docentes con un horario semanal.
+   Los dropdowns de hora se generan dinámicamente según el turno del grupo:
+   MATUTINO 07:00–13:00 y VESPERTINO 14:00–20:00, en intervalos de 1 hora.
+   Solo admin y control_escolar pueden crear/editar/eliminar planeaciones. #}
+{% extends 'base.html' %}
+
+{% block header %}
+  <h1>{% block title %}Planeaciones{% endblock %}</h1>
+{% endblock %}
+
+{% block content %}
+
+{# Filtro por periodo + botón de nueva planeación #}
+<div style="display:flex; align-items:center; gap:1.5rem; margin-bottom:1rem; flex-wrap:wrap">
+  <div class="filter-item" style="min-width:200px">
+    <label for="filter-periodo">Filtrar por periodo</label>
+    <select id="filter-periodo">
+      <option value="">Todos</option>
+      {% for p in periodos %}
+        <option value="{{ p['id'] }}" {{ 'selected' if periodo_id == p['id'] else '' }}>
+          {{ p['name'] }}
+        </option>
+      {% endfor %}
+    </select>
+  </div>
+  <button id="nueva-btn" class="btn-save" style="align-self:flex-end">+ Nueva Planeación</button>
+</div>
+
+{# Tabla de planeaciones #}
+<table class="students-table" id="plan-table">
+  <thead>
+    <tr>
+      <th>Periodo</th>
+      <th>Grupo</th>
+      <th>Materia</th>
+      <th>Docente</th>
+      <th>Día</th>
+      <th>Horario</th>
+      <th>Aula</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for p in planeaciones %}
+      <tr class="clickable-row" data-plan-id="{{ p['id'] }}">
+        <td>{{ p['periodo'] }}</td>
+        <td>{{ p['grupo'].upper() }}</td>
+        <td>{{ p['materia'] }}</td>
+        <td>{{ p['docente'] }}</td>
+        <td>{{ p['dia_semana'].capitalize() }}</td>
+        <td>{{ p['hora_inicio'] }} – {{ p['hora_fin'] }}</td>
+        <td>{{ p['aula'] or '—' }}</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="7">No hay planeaciones registradas.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{# Modal de agregar/editar planeación #}
+<div id="modal-overlay" class="modal-hidden">
+  <div class="modal" style="width:600px">
+    <h2 id="modal-title">Nueva Planeación</h2>
+    <form id="plan-form">
+      <input type="hidden" id="edit-plan-id">
+
+      {# Fila 1: Periodo y Grupo #}
+      <div class="form-row">
+        <div class="form-col">
+          <label>Periodo</label>
+          <select id="f-periodo" required>
+            <option value="">-- Selecciona --</option>
+            {% for p in periodos %}
+              <option value="{{ p['id'] }}">{{ p['name'] }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-col">
+          <label>Grupo</label>
+          <select id="f-grupo" required>
+            <option value="">-- Selecciona --</option>
+            {% for g in grupos %}
+              <option value="{{ g['id'] }}"
+                      data-hora-inicio="{{ g['hora_inicio'] }}"
+                      data-hora-fin="{{ g['hora_fin'] }}">
+                {{ g['name'].upper() }} ({{ g['turno'] }})
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      {# Fila 2: Materia y Docente #}
+      {# Materia se carga vía /api/materias cuando se selecciona un periodo #}
+      <div class="form-row">
+        <div class="form-col">
+          <label>Materia</label>
+          <select id="f-materia" required disabled>
+            <option value="">-- Selecciona periodo primero --</option>
+          </select>
+        </div>
+        <div class="form-col">
+          <label>Docente</label>
+          <select id="f-docente" required>
+            <option value="">-- Selecciona --</option>
+            {% for d in docentes %}
+              <option value="{{ d['id'] }}">{{ d['nombre'] }} {{ d['apellido'] }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      {# Fila 3: Día y Aula #}
+      <div class="form-row">
+        <div class="form-col">
+          <label>Día de la semana</label>
+          <select id="f-dia" required>
+            <option value="">-- Selecciona --</option>
+            <option value="lunes">Lunes</option>
+            <option value="martes">Martes</option>
+            <option value="miercoles">Miércoles</option>
+            <option value="jueves">Jueves</option>
+            <option value="viernes">Viernes</option>
+            <option value="sabado">Sábado</option>
+          </select>
+        </div>
+        <div class="form-col">
+          <label>Aula</label>
+          <input type="text" id="f-aula" placeholder="ej. A-201">
+        </div>
+      </div>
+
+      {# Fila 4: Hora inicio y Hora fin (dependen del turno del grupo) #}
+      <div class="form-row">
+        <div class="form-col">
+          <label>Hora inicio</label>
+          <select id="f-hora-inicio" disabled required>
+            <option value="">-- Selecciona grupo primero --</option>
+          </select>
+        </div>
+        <div class="form-col">
+          <label>Hora fin</label>
+          <select id="f-hora-fin" disabled required>
+            <option value="">-- Selecciona hora inicio --</option>
+          </select>
+        </div>
+      </div>
+
+      {# Fila 5: Observaciones #}
+      <div class="form-row">
+        <div class="form-col" style="flex:1 1 100%">
+          <label>Observaciones</label>
+          <textarea id="f-obs" rows="2"
+                    style="padding:0.4rem;border:1px solid #ccc;border-radius:4px;font-size:0.9em;resize:vertical"></textarea>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button type="submit" class="btn-save">Guardar</button>
+        <button type="button" id="delete-plan-btn" class="btn-danger" style="display:none">
+          Eliminar
+        </button>
+        <button type="button" id="cancel-btn" class="btn-cancel">Cancelar</button>
+      </div>
+      <p id="modal-error" style="color:#c0392b;margin-top:0.4rem;display:none"></p>
+    </form>
+  </div>
+</div>
+
+<script>
+  const overlay   = document.getElementById('modal-overlay');
+  const modalTitle = document.getElementById('modal-title');
+  const errMsg    = document.getElementById('modal-error');
+
+  // Mapa de datos de grupo para acceso rápido por id
+  const grupoOpts = {};
+  document.querySelectorAll('#f-grupo option[data-hora-inicio]').forEach(o => {
+    grupoOpts[o.value] = {
+      horaInicio: o.dataset.horaInicio,
+      horaFin:    o.dataset.horaFin,
+    };
+  });
+
+  // ── Formato de hora: '07:00' → '7:00 AM', '14:00' → '2:00 PM' ───────────────
+  function fmtHora(hhmm) {
+    const h = parseInt(hhmm.split(':')[0]);
+    if (h === 0)  return '12:00 AM';
+    if (h < 12)   return `${h}:00 AM`;
+    if (h === 12) return '12:00 PM';
+    return `${h - 12}:00 PM`;
+  }
+
+  function padH(h) { return `${String(h).padStart(2,'0')}:00`; }
+
+  // ── Genera opciones de hora dentro del rango del turno ───────────────────────
+  function buildHoraInicio(horaInicioStr, horaFinStr, selectedVal) {
+    const start = parseInt(horaInicioStr);
+    const end   = parseInt(horaFinStr);
+    const sel   = document.getElementById('f-hora-inicio');
+    sel.innerHTML = '<option value="">-- Selecciona --</option>';
+    // hora_inicio puede ser cualquier hora del turno excepto la última
+    for (let h = start; h < end; h++) {
+      const v = padH(h);
+      const opt = new Option(fmtHora(v), v);
+      if (v === selectedVal) opt.selected = true;
+      sel.add(opt);
+    }
+    sel.disabled = false;
+  }
+
+  function buildHoraFin(horaInicioVal, horaFinStr, selectedVal) {
+    const start = parseInt(horaInicioVal) + 1;
+    const end   = parseInt(horaFinStr);
+    const sel   = document.getElementById('f-hora-fin');
+    sel.innerHTML = '<option value="">-- Selecciona --</option>';
+    for (let h = start; h <= end; h++) {
+      const v = padH(h);
+      const opt = new Option(fmtHora(v), v);
+      if (v === selectedVal) opt.selected = true;
+      sel.add(opt);
+    }
+    sel.disabled = false;
+  }
+
+  // ── Al cambiar periodo: recarga las materias disponibles ────────────────────
+  async function loadMaterias(periodoId, selectedId) {
+    const sel = document.getElementById('f-materia');
+    sel.innerHTML = '<option value="">-- Cargando... --</option>';
+    sel.disabled = true;
+    if (!periodoId) {
+      sel.innerHTML = '<option value="">-- Selecciona periodo primero --</option>';
+      return;
+    }
+    try {
+      const resp = await fetch(`/api/materias?periodo_id=${periodoId}`);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const materias = await resp.json();
+      sel.innerHTML = '<option value="">-- Selecciona --</option>';
+      materias.forEach(m => {
+        const opt = new Option(`${m.name} (Sem. ${m.semester})`, m.id);
+        if (String(m.id) === String(selectedId)) opt.selected = true;
+        sel.add(opt);
+      });
+    } catch(err) {
+      console.error('loadMaterias error:', err);
+      sel.innerHTML = `<option value="">-- Error: ${err.message} --</option>`;
+    }
+    sel.disabled = false;
+  }
+
+  document.getElementById('f-periodo').addEventListener('change', function () {
+    loadMaterias(this.value, null);
+  });
+
+  // ── Al cambiar grupo: recarga las horas según el turno ───────────────────────
+  document.getElementById('f-grupo').addEventListener('change', function () {
+    const info = grupoOpts[this.value];
+    const horaFinSel = document.getElementById('f-hora-fin');
+    horaFinSel.innerHTML = '<option value="">-- Selecciona hora inicio --</option>';
+    horaFinSel.disabled = true;
+    if (info && info.horaInicio && info.horaFin) {
+      buildHoraInicio(info.horaInicio, info.horaFin, '');
+    } else {
+      document.getElementById('f-hora-inicio').innerHTML =
+        '<option value="">-- Grupo sin turno configurado --</option>';
+      document.getElementById('f-hora-inicio').disabled = true;
+    }
+  });
+
+  // ── Al cambiar hora inicio: recarga hora fin ─────────────────────────────────
+  document.getElementById('f-hora-inicio').addEventListener('change', function () {
+    if (!this.value) return;
+    const grupoId = document.getElementById('f-grupo').value;
+    const info    = grupoOpts[grupoId];
+    if (info) buildHoraFin(this.value, info.horaFin, '');
+  });
+
+  // ── Abrir modal vacío para nueva planeación ──────────────────────────────────
+  document.getElementById('nueva-btn').addEventListener('click', () => {
+    document.getElementById('plan-form').reset();
+    document.getElementById('edit-plan-id').value = '';
+    const matSel = document.getElementById('f-materia');
+    matSel.innerHTML = '<option value="">-- Selecciona periodo primero --</option>';
+    matSel.disabled = true;
+    document.getElementById('f-hora-inicio').innerHTML =
+      '<option value="">-- Selecciona grupo primero --</option>';
+    document.getElementById('f-hora-inicio').disabled = true;
+    document.getElementById('f-hora-fin').innerHTML =
+      '<option value="">-- Selecciona hora inicio --</option>';
+    document.getElementById('f-hora-fin').disabled = true;
+    document.getElementById('delete-plan-btn').style.display = 'none';
+    modalTitle.textContent = 'Nueva Planeación';
+    errMsg.style.display = 'none';
+    overlay.classList.remove('modal-hidden');
+  });
+
+  // ── Abrir modal con datos al hacer clic en una fila ──────────────────────────
+  document.getElementById('plan-table').addEventListener('click', async e => {
+    const row = e.target.closest('tr[data-plan-id]');
+    if (!row) return;
+    errMsg.style.display = 'none';
+
+    // Reconstruye los datos desde las celdas de la fila (evita una petición extra)
+    const cells = row.querySelectorAll('td');
+    const planId = row.dataset.planId;
+
+    // Los datos que necesitamos para los selects los buscamos en las opciones
+    document.getElementById('edit-plan-id').value = planId;
+    modalTitle.textContent = 'Editar Planeación';
+
+    // Necesitamos los IDs, no los nombres; hacemos una petición simple a la lista
+    // ya renderizada del servidor via los data del row
+    // Para esto, embebemos los ids en el row usando data attributes (ver tbody arriba)
+    // En su lugar, buscamos coincidencias en los selects por texto
+    setSelectByText('f-periodo', cells[0].textContent.trim());
+    setSelectByText('f-materia', cells[2].textContent.trim());
+    setSelectByText('f-docente', cells[3].textContent.trim());
+
+    // Grupo: al fijarlo se reconstruyen las horas
+    const grupoName = cells[1].textContent.trim();
+    const grupoSel = document.getElementById('f-grupo');
+    for (const opt of grupoSel.options) {
+      if (opt.text.startsWith(grupoName.charAt(0))) { // coincidencia por primera letra no es segura
+        // mejor comparar el nombre exacto extraído del option
+      }
+    }
+    // Usamos el data-plan-id para buscar en los datos embebidos en la tabla
+    // Recargamos con los ids reales desde el servidor
+    const res = await fetch(`/api/planeacion/${planId}`);
+    if (!res.ok) return;
+    const d = await res.json();
+
+    document.getElementById('f-periodo').value = d.periodo_escolar;
+    // Carga las materias del periodo y pre-selecciona la guardada.
+    await loadMaterias(d.periodo_escolar, d.id_materia);
+    document.getElementById('f-grupo').value   = d.id_grupo;
+    document.getElementById('f-docente').value = d.id_docente;
+    document.getElementById('f-dia').value     = d.dia_semana;
+    document.getElementById('f-aula').value    = d.aula || '';
+    document.getElementById('f-obs').value     = d.observaciones || '';
+
+    const info = grupoOpts[String(d.id_grupo)];
+    if (info) {
+      buildHoraInicio(info.horaInicio, info.horaFin, d.hora_inicio);
+      buildHoraFin(d.hora_inicio, info.horaFin, d.hora_fin);
+    }
+
+    document.getElementById('delete-plan-btn').style.display = '';
+    overlay.classList.remove('modal-hidden');
+  });
+
+  function setSelectByText(id, text) {
+    const sel = document.getElementById(id);
+    for (const opt of sel.options) {
+      if (opt.textContent.trim() === text) { sel.value = opt.value; return; }
+    }
+  }
+
+  // ── Guardar planeación (crear o actualizar) ───────────────────────────────────
+  document.getElementById('plan-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    errMsg.style.display = 'none';
+    const planId = document.getElementById('edit-plan-id').value;
+    const body = {
+      id_grupo:       parseInt(document.getElementById('f-grupo').value),
+      id_materia:     parseInt(document.getElementById('f-materia').value),
+      id_docente:     parseInt(document.getElementById('f-docente').value),
+      dia_semana:     document.getElementById('f-dia').value,
+      hora_inicio:    document.getElementById('f-hora-inicio').value,
+      hora_fin:       document.getElementById('f-hora-fin').value,
+      aula:           document.getElementById('f-aula').value.trim(),
+      periodo_escolar:parseInt(document.getElementById('f-periodo').value),
+      observaciones:  document.getElementById('f-obs').value.trim(),
+    };
+    const url    = planId ? `/api/planeacion/${planId}` : '/api/planeacion';
+    const res    = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (res.ok) { overlay.classList.add('modal-hidden'); location.reload(); }
+    else {
+      const d = await res.json();
+      errMsg.textContent = d.error || 'Error al guardar.';
+      errMsg.style.display = '';
+    }
+  });
+
+  // ── Eliminar planeación ───────────────────────────────────────────────────────
+  document.getElementById('delete-plan-btn').addEventListener('click', async () => {
+    const planId = document.getElementById('edit-plan-id').value;
+    if (!confirm('¿Eliminar esta planeación?')) return;
+    const res = await fetch(`/api/planeacion/${planId}/delete`, { method: 'POST' });
+    if (res.ok) { overlay.classList.add('modal-hidden'); location.reload(); }
+  });
+
+  // ── Filtro de periodo ─────────────────────────────────────────────────────────
+  document.getElementById('filter-periodo').addEventListener('change', function () {
+    const url = new URL(location.href);
+    if (this.value) url.searchParams.set('periodo_id', this.value);
+    else url.searchParams.delete('periodo_id');
+    location.href = url.toString();
+  });
+
+  // ── Cerrar modal ──────────────────────────────────────────────────────────────
+  document.getElementById('cancel-btn').addEventListener('click', () =>
+    overlay.classList.add('modal-hidden'));
+  overlay.addEventListener('click', e => {
+    if (e.target === overlay) overlay.classList.add('modal-hidden');
+  });
+</script>
+{% endblock %}

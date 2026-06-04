@@ -1,0 +1,180 @@
+{# Página de gestión de grupos.
+   Muestra la lista de grupos con turno asociado y botones de editar/eliminar por fila.
+   Un formulario lateral permite agregar nuevos grupos.
+   Solo accesible para administradores y control escolar.
+   No se puede eliminar un grupo que tenga alumnos asignados. #}
+{% extends 'base.html' %}
+
+{% block header %}
+  <h1>{% block title %}Grupos{% endblock %}</h1>
+{% endblock %}
+
+{% block content %}
+<div class="mgmt-layout">
+
+  {# Tabla de grupos con botones de acción por fila #}
+  <div class="mgmt-list">
+    <table class="mgmt-table">
+      <thead>
+        <tr>
+          <th>Grupo</th>
+          <th>Turno</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for g in groups %}
+          <tr>
+            <td>{{ g['name'].upper() }}</td>
+            <td>{{ g['turno'] }}</td>
+            <td style="white-space:nowrap">
+              <button class="btn-edit"
+                      data-id="{{ g['id'] }}"
+                      data-name="{{ g['name'] }}"
+                      data-swift="{{ g['swift_id'] }}">
+                Editar
+              </button>
+              <button class="btn-del"
+                      data-id="{{ g['id'] }}"
+                      data-name="{{ g['name'].upper() }}">
+                Eliminar
+              </button>
+            </td>
+          </tr>
+        {% else %}
+          <tr><td colspan="3">No hay grupos registrados.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <p id="del-error" style="color:#c0392b; margin-top:0.6rem; display:none"></p>
+  </div>
+
+  {# Formulario para agregar un nuevo grupo #}
+  <div class="mgmt-form">
+    <h3>Agregar Grupo</h3>
+    <form method="post">
+      <label for="name">Nombre del grupo</label>
+      <input type="text" name="name" id="name" placeholder="ej. c" required>
+
+      <label for="swift_id">Turno</label>
+      <select name="swift_id" id="swift_id" required>
+        <option value="">-- Selecciona --</option>
+        {% for s in swifts %}
+          <option value="{{ s['id'] }}">{{ s['name'] }}</option>
+        {% endfor %}
+      </select>
+
+      <button type="submit">Agregar</button>
+    </form>
+  </div>
+
+</div>
+
+{# Modal de edición de grupo #}
+<div id="modal-overlay" class="modal-hidden">
+  <div class="modal">
+    <h2>Editar Grupo</h2>
+    <form id="edit-form">
+      <input type="hidden" id="edit-id">
+
+      <div class="form-row">
+        <div class="form-col">
+          <label>Nombre del grupo</label>
+          <input type="text" id="edit-name" required>
+        </div>
+        <div class="form-col">
+          <label>Turno</label>
+          <select id="edit-swift">
+            {% for s in swifts %}
+              <option value="{{ s['id'] }}">{{ s['name'] }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button type="submit" class="btn-save">Guardar</button>
+        <button type="button" id="cancel-btn" class="btn-cancel">Cancelar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<style>
+  .btn-edit {
+    padding: 0.25rem 0.7rem;
+    background: #377ba8;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.82em;
+    margin-right: 0.3rem;
+  }
+  .btn-edit:hover { background: #2a5d80; }
+  .btn-del {
+    padding: 0.25rem 0.7rem;
+    background: #c0392b;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.82em;
+  }
+  .btn-del:hover { background: #922b21; }
+</style>
+
+<script>
+  const overlay  = document.getElementById('modal-overlay');
+  const delError = document.getElementById('del-error');
+
+  // ── Abrir modal de edición ────────────────────────────────────────────────
+
+  document.querySelectorAll('.btn-edit').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.getElementById('edit-id').value    = btn.dataset.id;
+      document.getElementById('edit-name').value  = btn.dataset.name;
+      document.getElementById('edit-swift').value = btn.dataset.swift;
+      overlay.classList.remove('modal-hidden');
+    });
+  });
+
+  // ── Guardar cambios ───────────────────────────────────────────────────────
+
+  document.getElementById('edit-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const id = document.getElementById('edit-id').value;
+    const res = await fetch(`/api/grupo/${id}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name:     document.getElementById('edit-name').value.trim(),
+        swift_id: parseInt(document.getElementById('edit-swift').value),
+      })
+    });
+    if (res.ok) location.reload();
+  });
+
+  // ── Eliminar grupo ────────────────────────────────────────────────────────
+
+  document.querySelectorAll('.btn-del').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      delError.style.display = 'none';
+      if (!confirm(`¿Eliminar el grupo "${btn.dataset.name}"?`)) return;
+      const res  = await fetch(`/api/grupo/${btn.dataset.id}/delete`, { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) {
+        delError.textContent = data.error;
+        delError.style.display = '';
+      } else {
+        location.reload();
+      }
+    });
+  });
+
+  // ── Cerrar modal ──────────────────────────────────────────────────────────
+
+  document.getElementById('cancel-btn').addEventListener('click', () => overlay.classList.add('modal-hidden'));
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.classList.add('modal-hidden'); });
+</script>
+{% endblock %}

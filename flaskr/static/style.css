@@ -5,7 +5,7 @@ html {
 }
 
 body {
-  max-width: 960px;
+  max-width: 1200px;
   margin: 0 auto;
   background: white;
 }
@@ -335,3 +335,302 @@ input[type=submit] {
 }
 
 .btn-cancel:hover { background: #c8c8c8; }
+
+.btn-danger {
+  padding: 0.45rem 1.2rem;
+  background: #c0392b;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9em;
+}
+
+.btn-danger:hover { background: #922b21; }
+
+.btn-warning {
+  padding: 0.45rem 1.2rem;
+  background: #e67e22;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9em;
+}
+
+.btn-warning:hover { background: #b9770e; }
+
+/* Estado activo/inactivo del usuario */
+.badge {
+  display: inline-block;
+  padding: 0.18rem 0.6rem;
+  border-radius: 10px;
+  font-size: 0.78em;
+  font-weight: bold;
+  letter-spacing: 0.03em;
+}
+
+.badge-active   { background: #d4edda; color: #155724; }
+.badge-inactive { background: #f8d7da; color: #721c24; }
+
+/* Filas de usuarios inactivos aparecen atenuadas */
+tr.user-inactive td { opacity: 0.55; }
+
+/* ── Tabs ──────────────────────────────────────────────── */
+.tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 2px solid #377ba8;
+  margin: 1rem 0 1.5rem;
+  flex-wrap: nowrap;
+}
+
+.tabs a {
+  padding: 0.5rem 1.1rem;
+  text-decoration: none;
+  color: #377ba8;
+  font-size: 0.92em;
+  font-weight: bold;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 4px 4px 0 0;
+  margin-bottom: -2px;
+  transition: background 0.15s;
+}
+
+.tabs a:hover {
+  background: #e8f2fa;
+}
+
+.tabs a.active {
+  background: white;
+  border-color: #377ba8 #377ba8 white #377ba8;
+  color: #2a5d80;
+}
+
+/* ── Management pages (groups, classes, shifts, register) ── */
+.mgmt-layout {
+  display: flex;
+  gap: 2rem;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.mgmt-list {
+  flex: 1;
+  min-width: 260px;
+}
+
+.mgmt-form {
+  flex: 0 0 280px;
+}
+
+.mgmt-form h3 {
+  margin: 0 0 0.8rem;
+  font-size: 1em;
+  color: #377ba8;
+}
+
+.mgmt-form form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  background: #f7f9fc;
+  padding: 1rem;
+  border: 1px solid #d0dce8;
+  border-radius: 6px;
+}
+
+.mgmt-form label {
+  font-size: 0.85em;
+  font-weight: bold;
+  color: #555;
+}
+
+.mgmt-form input,
+.mgmt-form select {
+  padding: 0.4rem 0.5rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 0.9em;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.mgmt-form button[type=submit] {
+  margin-top: 0.4rem;
+  padding: 0.45rem 1.2rem;
+  background: #377ba8;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9em;
+  align-self: flex-start;
+}
+
+.mgmt-form button[type=submit]:hover {
+  background: #2a5d80;
+}
+
+.mgmt-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9em;
+}
+
+.mgmt-table th {
+  background: #377ba8;
+  color: white;
+  padding: 0.45rem 0.75rem;
+  text-align: left;
+}
+
+.mgmt-table td {
+  padding: 0.4rem 0.75rem;
+  border-bottom: 1px solid #ddd;
+}
+
+.mgmt-table tbody tr:nth-child(even) {
+  background: #f4f8fb;
+}
+
+/* ── Register student form ─────────────────────────────── */
+.register-student-form {
+  max-width: 680px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.register-student-form .form-row {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.register-student-form .form-col {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 200px;
+  gap: 0.3rem;
+}
+
+.register-student-form label {
+  font-size: 0.85em;
+  font-weight: bold;
+  color: #555;
+}
+
+.register-student-form input,
+.register-student-form select {
+  padding: 0.4rem 0.5rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 0.9em;
+}
+
+.register-student-form select:disabled {
+  background: #f0f0f0;
+  color: #999;
+}
+
+.grades-section {
+  margin-top: 0.5rem;
+}
+
+.grades-section h3 {
+  font-size: 0.95em;
+  margin: 0 0 0.6rem;
+  color: #377ba8;
+}
+
+.grades-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.grade-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 190px;
+}
+
+.grade-item label {
+  font-size: 0.82em;
+  color: #555;
+  font-weight: bold;
+}
+
+.grade-item input {
+  padding: 0.35rem 0.5rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 0.9em;
+  width: 70px;
+}
+
+.register-student-form .btn-submit {
+  align-self: flex-start;
+  padding: 0.5rem 1.4rem;
+  background: #377ba8;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.95em;
+  margin-top: 0.5rem;
+}
+
+.register-student-form .btn-submit:hover {
+  background: #2a5d80;
+}
+
+/* ── Página de diagramas ──────────────────────────────────────────────────── */
+
+.diag-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.diag-tab {
+  padding: 0.45rem 1.2rem;
+  border: 2px solid #29468b;
+  border-radius: 4px 4px 0 0;
+  background: #e8edf8;
+  color: #29468b;
+  font-weight: bold;
+  cursor: pointer;
+  font-size: 0.95em;
+}
+
+.diag-tab.active {
+  background: #29468b;
+  color: #fff;
+}
+
+.diag-tab:hover:not(.active) {
+  background: #d0d8f0;
+}
+
+.diag-panel {
+  overflow-x: auto;
+  border: 1px solid #c5cee0;
+  border-radius: 0 4px 4px 4px;
+  background: #fff;
+  padding: 1rem;
+}
+
+.diag-hidden {
+  display: none;
+}
+
+.diag-img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}

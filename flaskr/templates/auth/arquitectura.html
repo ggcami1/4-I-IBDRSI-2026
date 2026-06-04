@@ -1,0 +1,35 @@
+{% extends 'base.html' %}
+
+{% block header %}
+  <h1>{% block title %}Arquitectura{% endblock %}</h1>
+{% endblock %}
+
+{% block content %}
+<div class="diag-tabs">
+  <button class="diag-tab active" data-target="arch">Arquitectura del Sistema</button>
+  <button class="diag-tab"        data-target="er">Diagrama Entidad-Relación</button>
+</div>
+
+<div id="arch" class="diag-panel">
+  <img src="{{ url_for('static', filename='architecture_diagram.png') }}"
+       alt="Diagrama de arquitectura"
+       class="diag-img">
+</div>
+
+<div id="er" class="diag-panel diag-hidden">
+  <img src="{{ url_for('static', filename='schema_diagram.png') }}"
+       alt="Diagrama entidad-relación"
+       class="diag-img">
+</div>
+
+<script>
+  document.querySelectorAll('.diag-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.diag-tab').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.diag-panel').forEach(p => p.classList.add('diag-hidden'));
+      btn.classList.add('active');
+      document.getElementById(btn.dataset.target).classList.remove('diag-hidden');
+    });
+  });
+</script>
+{% endblock %}

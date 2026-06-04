@@ -1,0 +1,46 @@
+{# Vista de horario personal del docente.
+   Muestra las planeaciones asignadas al usuario autenticado,
+   agrupadas por día de la semana en orden lunes → sábado. #}
+{% extends 'base.html' %}
+
+{% block header %}
+  <h1>{% block title %}Mi Horario{% endblock %}</h1>
+{% endblock %}
+
+{% block content %}
+
+{% if not horario %}
+  <p class="no-results">No tienes planeaciones asignadas.</p>
+{% else %}
+  {% for dia, clases in horario %}
+    <h3 style="margin:1.5rem 0 0.5rem; color:#377ba8; text-transform:capitalize">
+      {{ dia }}
+    </h3>
+    <table class="students-table">
+      <thead>
+        <tr>
+          <th>Horario</th>
+          <th>Materia</th>
+          <th>Grupo</th>
+          <th>Aula</th>
+          <th>Periodo</th>
+          <th>Observaciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in clases %}
+          <tr>
+            <td style="white-space:nowrap">{{ c['hora_inicio'] }} – {{ c['hora_fin'] }}</td>
+            <td>{{ c['materia'] }}</td>
+            <td>{{ c['grupo'].upper() }}</td>
+            <td>{{ c['aula'] or '—' }}</td>
+            <td>{{ c['periodo'] }}</td>
+            <td>{{ c['observaciones'] or '—' }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endfor %}
+{% endif %}
+
+{% endblock %}

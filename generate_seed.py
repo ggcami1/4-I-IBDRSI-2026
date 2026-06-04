@@ -150,7 +150,9 @@ parts.append("INSERT INTO periodo (name, year) VALUES\n" + ',\n'.join(rows) + ";
 parts.append("INSERT INTO \"group\" (name) VALUES\n    ('a'), ('b'), ('i'), ('j');\n")
 
 # swifts
-parts.append("INSERT INTO swift (name) VALUES\n    ('MATUTINO'), ('VESPERTINO');\n")
+parts.append("INSERT INTO swift (name, hora_inicio, hora_fin) VALUES\n"
+             "    ('MATUTINO',   '07:00', '13:00'),\n"
+             "    ('VESPERTINO', '14:00', '20:00');\n")
 
 # swift_group  a,b → MATUTINO(1)  i,j → VESPERTINO(2)
 parts.append("INSERT INTO swift_group (swift_id, group_id) VALUES\n"

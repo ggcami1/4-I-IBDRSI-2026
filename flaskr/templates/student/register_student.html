@@ -1,0 +1,151 @@
+{# Formulario de registro de nuevo alumno.
+   Los dropdowns de semestre, turno y grupo se cargan en cascada vía fetch() según
+   las selecciones previas. Al elegir semestre se generan dinámicamente los campos
+   de calificación para cada clase de ese semestre. Solo accesible para administradores. #}
+{% extends 'base.html' %}
+
+{% block header %}
+  <h1>{% block title %}Registrar Alumno{% endblock %}</h1>
+{% endblock %}
+
+{% block content %}
+<form method="post" class="register-student-form">
+
+  {# Fila 1: nombre y apellido del alumno #}
+  <div class="form-row">
+    <div class="form-col">
+      <label for="name">Nombre</label>
+      <input type="text" name="name" id="name" required>
+    </div>
+    <div class="form-col">
+      <label for="lastname">Apellido</label>
+      <input type="text" name="lastname" id="lastname" required>
+    </div>
+  </div>
+
+  {# Fila 2: periodo y semestre (semestre se carga tras elegir periodo) #}
+  <div class="form-row">
+    <div class="form-col">
+      <label for="periodo_id">Periodo</label>
+      <select name="periodo_id" id="periodo_id" required>
+        <option value="">-- Selecciona --</option>
+        {% for p in periodos %}
+          <option value="{{ p['id'] }}">{{ p['name'] }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-col">
+      <label for="semester">Semestre</label>
+      <select name="semester" id="semester" required disabled>
+        <option value="">-- Selecciona periodo primero --</option>
+      </select>
+    </div>
+  </div>
+
+  {# Fila 3: turno y grupo (se cargan tras elegir semestre y turno respectivamente) #}
+  <div class="form-row">
+    <div class="form-col">
+      <label for="turno_id">Turno</label>
+      <select id="turno_id" required disabled>
+        <option value="">-- Selecciona semestre primero --</option>
+      </select>
+    </div>
+    <div class="form-col">
+      <label for="group_id">Grupo</label>
+      <select name="group_id" id="group_id" required disabled>
+        <option value="">-- Selecciona turno primero --</option>
+      </select>
+    </div>
+  </div>
+
+  {# Sección de calificaciones: se genera dinámicamente cuando se elige el semestre.
+     Cada clase del semestre recibe un campo numérico con valor predeterminado 5. #}
+  <div class="grades-section" id="grades-section" style="display:none">
+    <h3>Calificaciones</h3>
+    <div class="grades-grid" id="grades-grid"></div>
+  </div>
+
+  <button type="submit" class="btn-submit">Registrar Alumno</button>
+</form>
+
+<script>
+  const periodoSel    = document.getElementById('periodo_id');
+  const semesterSel   = document.getElementById('semester');
+  const turnoSel      = document.getElementById('turno_id');
+  const groupSel      = document.getElementById('group_id');
+  const gradesGrid    = document.getElementById('grades-grid');
+  const gradesSection = document.getElementById('grades-section');
+
+  // Al cambiar periodo: carga semestres disponibles para ese periodo.
+  periodoSel.addEventListener('change', async () => {
+    resetSel(semesterSel, '-- Selecciona semestre --');
+    resetSel(turnoSel,    '-- Selecciona semestre primero --');
+    resetSel(groupSel,    '-- Selecciona turno primero --');
+    clearGrades();
+    if (!periodoSel.value) return;
+
+    const semestres = await fetchJson(`/api/semestres?periodo_id=${periodoSel.value}`);
+    semesterSel.disabled = false;
+    semestres.forEach(s => semesterSel.add(new Option(`Semestre ${s.semester}`, s.semester)));
+  });
+
+  // Al cambiar semestre: carga turnos disponibles y genera campos de calificación.
+  semesterSel.addEventListener('change', async () => {
+    resetSel(turnoSel, '-- Selecciona turno --');
+    resetSel(groupSel, '-- Selecciona turno primero --');
+    clearGrades();
+    if (!semesterSel.value) return;
+
+    const turnos = await fetchJson(`/api/turnos?periodo_id=${periodoSel.value}&semester=${semesterSel.value}`);
+    turnoSel.disabled = false;
+    turnos.forEach(t => turnoSel.add(new Option(t.name, t.id)));
+    await loadGrades(semesterSel.value);
+  });
+
+  // Al cambiar turno: carga grupos del turno seleccionado.
+  turnoSel.addEventListener('change', async () => {
+    resetSel(groupSel, '-- Selecciona grupo --');
+    if (!turnoSel.value) return;
+
+    const grupos = await fetchJson(
+      `/api/grupos?periodo_id=${periodoSel.value}&semester=${semesterSel.value}&turno_id=${turnoSel.value}`
+    );
+    groupSel.disabled = false;
+    grupos.forEach(g => groupSel.add(new Option(g.name.toUpperCase(), g.id)));
+  });
+
+  // Genera un campo de calificación (5-10) por cada clase del semestre elegido.
+  async function loadGrades(semester) {
+    const clases = await fetchJson(`/api/clases?semester=${semester}`);
+    gradesGrid.innerHTML = '';
+    clases.forEach(c => {
+      const item = document.createElement('div');
+      item.className = 'grade-item';
+      item.innerHTML = `
+        <label for="grade_${c.id}">${c.name}</label>
+        <input type="number" name="grade_${c.id}" id="grade_${c.id}"
+               min="5" max="10" value="5" required>
+      `;
+      gradesGrid.appendChild(item);
+    });
+    gradesSection.style.display = clases.length ? '' : 'none';
+  }
+
+  // Oculta y limpia la sección de calificaciones al cambiar filtros.
+  function clearGrades() {
+    gradesGrid.innerHTML = '';
+    gradesSection.style.display = 'none';
+  }
+
+  // Reinicia un <select> a su estado deshabilitado con el placeholder indicado.
+  function resetSel(sel, placeholder) {
+    sel.innerHTML = `<option value="">${placeholder}</option>`;
+    sel.disabled = true;
+  }
+
+  // Utilitario: obtiene JSON desde una URL y lo devuelve como objeto.
+  async function fetchJson(url) {
+    return (await fetch(url)).json();
+  }
+</script>
+{% endblock %}

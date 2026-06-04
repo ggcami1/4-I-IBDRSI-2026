@@ -1,3 +1,7 @@
+{# Pantalla de configuración del segundo factor de autenticación (2FA).
+   Muestra un código QR para escanear con Google Authenticator y el secreto
+   en texto por si el usuario no puede escanear. El usuario debe confirmar
+   ingresando un código válido antes de que el 2FA quede activado. #}
 {% extends 'base.html' %}
 
 {% block header %}
@@ -7,13 +11,16 @@
 {% block content %}
 <p>Escanea el código QR con <strong>Google Authenticator</strong> y luego ingresa el código de 6 dígitos para confirmar.</p>
 
+{# Imagen QR codificada en base64, generada en el servidor con la librería qrcode #}
 <div style="text-align:center; margin: 1.5rem 0;">
   <img src="data:image/png;base64,{{ qr_b64 }}" alt="QR Code" style="width:200px; height:200px;">
 </div>
 
+{# Alternativa manual: el usuario teclea el secreto directamente en la app #}
 <p>¿No puedes escanear? Ingresa esta clave manualmente en la app:</p>
 <p style="font-family:monospace; font-size:1.1em; letter-spacing:0.1em; background:#f0f0f0; padding:0.5rem 1rem; display:inline-block; border-radius:4px;">{{ secret }}</p>
 
+{# El código confirma que el usuario configuró correctamente la app antes de activar 2FA #}
 <form method="post" style="margin-top:1.5rem;">
   <label for="code">Código de verificación</label>
   <input id="code" name="code" placeholder="Código de 6 dígitos" maxlength="6"

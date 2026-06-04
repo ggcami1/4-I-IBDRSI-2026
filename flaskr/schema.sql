@@ -1,3 +1,14 @@
+-- ============================================================
+-- schema.sql — Sistema de Control Escolar
+-- Elimina tablas en orden inverso a sus dependencias, recrea el
+-- esquema completo con triggers e índices, e inserta datos semilla.
+-- Uso: flask --app flaskr init-db
+-- ============================================================
+
+-- Eliminación en orden correcto para respetar las claves foráneas
+DROP TABLE IF EXISTS planeaciones;
+DROP TABLE IF EXISTS login_logs;
+DROP TABLE IF EXISTS audit_logs;
 DROP TABLE IF EXISTS backup_code;
 DROP TABLE IF EXISTS user;
 DROP TABLE IF EXISTS student;
@@ -9,20 +20,39 @@ DROP TABLE IF EXISTS "group";
 DROP TABLE IF EXISTS swift_group;
 DROP TABLE IF EXISTS student_group_class;
 
+-- ── Tablas principales ────────────────────────────────────────────────────────
+
+-- Periodos escolares (ej. "Periodo 2026")
 CREATE TABLE periodo (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL,
   year INTEGER NOT NULL
 );
 
+-- Usuarios del sistema (docentes, control escolar y administradores)
 CREATE TABLE user (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   username TEXT UNIQUE NOT NULL,
+  nombre TEXT NOT NULL,
+  apellido TEXT NOT NULL,
+  email TEXT UNIQUE NOT NULL,
   password TEXT NOT NULL,
   totp_secret TEXT,
-  totp_enabled INTEGER DEFAULT 0
+  totp_enabled INTEGER DEFAULT 0,
+  rol TEXT NOT NULL DEFAULT 'docente' CHECK (rol IN ('admin', 'docente', 'control_escolar')),
+  activo INTEGER NOT NULL DEFAULT 1,
+  ultimo_login TEXT,
+  creado_en TEXT NOT NULL DEFAULT (datetime('now')),
+  actualizado_en TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TRIGGER trg_user_actualizado_en
+AFTER UPDATE ON user
+BEGIN
+  UPDATE user SET actualizado_en = datetime('now') WHERE id = NEW.id;
+END;
+
+-- Códigos de respaldo de 2FA: cada código es de un solo uso y se almacena hasheado
 CREATE TABLE backup_code (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id INTEGER NOT NULL,
@@ -31,6 +61,7 @@ CREATE TABLE backup_code (
   FOREIGN KEY (user_id) REFERENCES user(id)
 );
 
+-- Alumnos inscritos; cada alumno pertenece a un grupo y a un periodo
 CREATE TABLE student (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
@@ -43,22 +74,28 @@ CREATE TABLE student (
     FOREIGN KEY (periodo_id) REFERENCES periodo (id)
 );
 
+-- Materias/clases; cada clase pertenece a un semestre (1-6)
 CREATE TABLE class (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     semester INTEGER NOT NULL
 );
 
+-- Turnos escolares; hora_inicio y hora_fin definen el rango horario del turno (HH:MM)
 create table swift (
     id integer primary key autoincrement,
-    name text not null
+    name text not null,
+    hora_inicio text,
+    hora_fin text
 );
 
+-- Grupos de alumnos (a, b, i, j); nombre en minúsculas por convención
 create table "group" (
     id integer primary key autoincrement,
     name text not null
 );
 
+-- Relación muchos-a-muchos entre turnos y grupos
 create table swift_group (
     id integer primary key autoincrement,
     swift_id integer not null,
@@ -67,6 +104,33 @@ create table swift_group (
     FOREIGN KEY (group_id) REFERENCES "group" (id)
 );
 
+-- Planeación de clases: relaciona grupo + materia + docente con día y horario
+CREATE TABLE planeaciones (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  id_grupo        INTEGER NOT NULL,
+  id_materia      INTEGER NOT NULL,
+  id_docente      INTEGER NOT NULL,
+  dia_semana      TEXT NOT NULL CHECK (dia_semana IN ('lunes','martes','miercoles','jueves','viernes','sabado')),
+  hora_inicio     TEXT NOT NULL,
+  hora_fin        TEXT NOT NULL,
+  aula            TEXT,
+  periodo_escolar INTEGER NOT NULL,
+  observaciones   TEXT,
+  creado_en       TEXT NOT NULL DEFAULT (datetime('now')),
+  actualizado_en  TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (id_grupo)        REFERENCES "group"(id),
+  FOREIGN KEY (id_materia)      REFERENCES class(id),
+  FOREIGN KEY (id_docente)      REFERENCES user(id),
+  FOREIGN KEY (periodo_escolar) REFERENCES periodo(id)
+);
+
+CREATE TRIGGER trg_planeaciones_actualizado_en
+AFTER UPDATE ON planeaciones
+BEGIN
+  UPDATE planeaciones SET actualizado_en = datetime('now') WHERE id = NEW.id;
+END;
+
+-- Calificaciones: relaciona alumno + grupo + clase con su calificación (5-10)
 create table student_group_class (
     id integer primary key autoincrement,
     student_id integer not null,
@@ -78,6 +142,115 @@ create table student_group_class (
     FOREIGN KEY (class_id) REFERENCES class (id)
 );
 
+-- ── Registro de accesos (logins / logouts) ───────────────────────────────────
+
+CREATE TABLE login_logs (
+  id      INTEGER PRIMARY KEY AUTOINCREMENT,
+  usuario TEXT NOT NULL,
+  user_id INTEGER,
+  evento  TEXT NOT NULL CHECK (evento IN ('LOGIN_OK', 'LOGIN_FALLIDO', 'LOGOUT')),
+  ip      TEXT,
+  fecha   TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- ── Registro de auditoría de cambios ────────────────────────────────────────
+
+CREATE TABLE audit_logs (
+  id               INTEGER PRIMARY KEY AUTOINCREMENT,
+  tabla_afectada   TEXT NOT NULL,
+  registro_id      INTEGER NOT NULL,
+  accion           TEXT NOT NULL CHECK (accion IN ('INSERT', 'UPDATE', 'DELETE')),
+  datos_anteriores TEXT,
+  datos_nuevos     TEXT,
+  usuario          TEXT NOT NULL DEFAULT 'sistema',
+  fecha            TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TRIGGER trg_group_insert
+AFTER INSERT ON "group"
+BEGIN
+  INSERT INTO audit_logs (tabla_afectada, registro_id, accion, datos_anteriores, datos_nuevos, usuario)
+  VALUES (
+    'group',
+    NEW.id,
+    'INSERT',
+    NULL,
+    json_object('id', NEW.id, 'name', NEW.name),
+    current_audit_user()
+  );
+END;
+
+CREATE TRIGGER trg_group_update
+AFTER UPDATE ON "group"
+BEGIN
+  INSERT INTO audit_logs (tabla_afectada, registro_id, accion, datos_anteriores, datos_nuevos, usuario)
+  VALUES (
+    'group',
+    NEW.id,
+    'UPDATE',
+    json_object('id', OLD.id, 'name', OLD.name),
+    json_object('id', NEW.id, 'name', NEW.name),
+    current_audit_user()
+  );
+END;
+
+CREATE TRIGGER trg_group_delete
+AFTER DELETE ON "group"
+BEGIN
+  INSERT INTO audit_logs (tabla_afectada, registro_id, accion, datos_anteriores, datos_nuevos, usuario)
+  VALUES (
+    'group',
+    OLD.id,
+    'DELETE',
+    json_object('id', OLD.id, 'name', OLD.name),
+    NULL,
+    current_audit_user()
+  );
+END;
+
+-- ── Índices ───────────────────────────────────────────────────────────────────
+
+-- student: filtro principal usado en cada llamada a la API de alumnos
+CREATE INDEX idx_student_periodo_sem    ON student(periodo_id, semester);
+-- student: usado en JOINs con "group" y en el WHERE opcional por g.id
+CREATE INDEX idx_student_group          ON student(group_id);
+
+-- student_group_class: búsquedas puntuales y actualizaciones de calificación (student_id primero, más selectivo)
+CREATE INDEX idx_sgc_student_class      ON student_group_class(student_id, class_id);
+-- student_group_class: enfoque class-first cuando el optimizador filtra por class_id antes
+CREATE INDEX idx_sgc_class_student      ON student_group_class(class_id, student_id);
+
+-- swift_group: unido desde ambos lados (group y swift)
+CREATE INDEX idx_swift_group_group      ON swift_group(group_id);
+CREATE INDEX idx_swift_group_swift      ON swift_group(swift_id);
+
+-- class: filtrado por semestre en cada llamada a los dropdowns en cascada
+CREATE INDEX idx_class_semester         ON class(semester);
+
+-- backup_code: consultas por usuario filtrando solo los códigos no usados
+CREATE INDEX idx_backup_code_user_used  ON backup_code(user_id, used);
+
+-- planeaciones: consultas por grupo/día y por periodo
+CREATE INDEX idx_plan_grupo_dia         ON planeaciones(id_grupo, dia_semana);
+CREATE INDEX idx_plan_periodo           ON planeaciones(periodo_escolar);
+CREATE INDEX idx_plan_docente           ON planeaciones(id_docente);
+
+-- login_logs: búsquedas por usuario y por fecha
+CREATE INDEX idx_login_logs_usuario ON login_logs(usuario);
+CREATE INDEX idx_login_logs_fecha   ON login_logs(fecha);
+CREATE INDEX idx_login_logs_evento  ON login_logs(evento);
+
+-- audit_logs: consulta de todos los cambios a un registro específico
+CREATE INDEX idx_audit_tabla_registro   ON audit_logs(tabla_afectada, registro_id);
+-- audit_logs: consultas cronológicas e historial por usuario
+CREATE INDEX idx_audit_fecha            ON audit_logs(fecha);
+CREATE INDEX idx_audit_usuario          ON audit_logs(usuario);
+
+
+INSERT INTO user (username, nombre, apellido, email, password, rol) VALUES
+    ('admin', 'Administrador', 'Sistema', 'admin@school.local',
+     'scrypt:32768:8:1$iXCvRUs9qFAS7A87$41f40d69394587eaf8e7f5665e9e57ae0b3a9e30530c656cd9eede58b586a58fd012b977413d0ab6642ddf02bdabccbf17aaf75e31a65d2ce46354b4b37fee1e',
+     'admin');
 
 INSERT INTO periodo (name, year) VALUES
     ('Periodo 2017', 2017),
@@ -94,8 +267,9 @@ INSERT INTO periodo (name, year) VALUES
 INSERT INTO "group" (name) VALUES
     ('a'), ('b'), ('i'), ('j');
 
-INSERT INTO swift (name) VALUES
-    ('MATUTINO'), ('VESPERTINO');
+INSERT INTO swift (name, hora_inicio, hora_fin) VALUES
+    ('MATUTINO',   '07:00', '13:00'),
+    ('VESPERTINO', '14:00', '20:00');
 
 INSERT INTO swift_group (swift_id, group_id) VALUES
     (1, 1),
