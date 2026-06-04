@@ -13,6 +13,9 @@
     {% if g.user %}
       <li><span>{{ g.user['username'] }}</span></li>
       <li><a href="{{ url_for('auth.setup_2fa') }}">2FA</a></li>
+      {% if g.user['rol'] == 'admin' %}
+        <li><a href="{{ url_for('auth.arquitectura') }}">Arquitectura</a></li>
+      {% endif %}
       <li><a href="{{ url_for('auth.logout') }}">Cerrar Sesión</a></li>
     {% else %}
       <li><a href="{{ url_for('auth.register') }}">Registrarse</a></li>

@@ -153,7 +153,7 @@ CREATE TABLE login_logs (
   fecha   TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
--- ── Audit log ────────────────────────────────────────────────────────────────
+-- ── Registro de auditoría de cambios ────────────────────────────────────────
 
 CREATE TABLE audit_logs (
   id               INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -208,26 +208,26 @@ BEGIN
   );
 END;
 
--- ── Indexes ───────────────────────────────────────────────────────────────────
+-- ── Índices ───────────────────────────────────────────────────────────────────
 
--- student: primary filter used on every API call
+-- student: filtro principal usado en cada llamada a la API de alumnos
 CREATE INDEX idx_student_periodo_sem    ON student(periodo_id, semester);
--- student: used in JOINs to "group" and in optional WHERE g.id=?
+-- student: usado en JOINs con "group" y en el WHERE opcional por g.id
 CREATE INDEX idx_student_group          ON student(group_id);
 
--- student_group_class: point lookups and grade updates (student_id first, most selective)
+-- student_group_class: búsquedas puntuales y actualizaciones de calificación (student_id primero, más selectivo)
 CREATE INDEX idx_sgc_student_class      ON student_group_class(student_id, class_id);
--- student_group_class: class-first approach when optimizer filters by class_id early
+-- student_group_class: enfoque class-first cuando el optimizador filtra por class_id antes
 CREATE INDEX idx_sgc_class_student      ON student_group_class(class_id, student_id);
 
--- swift_group: joined from both sides (group and swift)
+-- swift_group: unido desde ambos lados (group y swift)
 CREATE INDEX idx_swift_group_group      ON swift_group(group_id);
 CREATE INDEX idx_swift_group_swift      ON swift_group(swift_id);
 
--- class: filtered by semester in every cascade dropdown call
+-- class: filtrado por semestre en cada llamada a los dropdowns en cascada
 CREATE INDEX idx_class_semester         ON class(semester);
 
--- backup_code: looked up per-user filtered to unused codes only
+-- backup_code: consultas por usuario filtrando solo los códigos no usados
 CREATE INDEX idx_backup_code_user_used  ON backup_code(user_id, used);
 
 -- planeaciones: consultas por grupo/día y por periodo
@@ -240,9 +240,9 @@ CREATE INDEX idx_login_logs_usuario ON login_logs(usuario);
 CREATE INDEX idx_login_logs_fecha   ON login_logs(fecha);
 CREATE INDEX idx_login_logs_evento  ON login_logs(evento);
 
--- audit_logs: look up all changes to a specific record
+-- audit_logs: consulta de todos los cambios a un registro específico
 CREATE INDEX idx_audit_tabla_registro   ON audit_logs(tabla_afectada, registro_id);
--- audit_logs: chronological queries and per-user history
+-- audit_logs: consultas cronológicas e historial por usuario
 CREATE INDEX idx_audit_fecha            ON audit_logs(fecha);
 CREATE INDEX idx_audit_usuario          ON audit_logs(usuario);
 

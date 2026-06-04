@@ -402,6 +402,14 @@ def auditoria():
                            sort_col=sort_col, sort_order=sort_order)
 
 
+# ── Diagramas ────────────────────────────────────────────────────────────────
+
+@bp.route('/arquitectura')
+@admin_required
+def arquitectura():
+    return render_template('auth/arquitectura.html')
+
+
 # ── Gestión de usuarios ───────────────────────────────────────────────────────
 
 @bp.route('/usuarios')
@@ -443,6 +451,8 @@ def api_get_usuario(user_id):
 @bp.route('/api/usuario/<int:user_id>', methods=['POST'])
 @admin_required
 def api_update_usuario(user_id):
+    # Actualiza los datos de un usuario desde el modal de edición.
+    # El rol de un admin nunca puede cambiarse; control_escolar no puede asignar rol admin.
     data = request.get_json()
     db = get_db()
     row = db.execute('SELECT rol FROM user WHERE id = ?', (user_id,)).fetchone()

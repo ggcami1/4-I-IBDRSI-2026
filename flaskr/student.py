@@ -143,18 +143,15 @@ def api_grupos():
 @bp.route('/api/materias')
 @login_required
 def api_materias():
-    # Devuelve las clases cuyo semestre existe en el periodo solicitado.
-    # Así Periodo 2026 (que solo tiene sems 2, 4, 6) solo muestra esas materias.
+    # Devuelve todas las materias disponibles para asignar en una planeación.
+    # El parámetro periodo_id se recibe pero no filtra: la tabla periodo no tiene
+    # configuración de semestres, por lo que mostrar todas las materias es correcto.
     periodo_id = request.args.get('periodo_id', type=int)
     if not periodo_id:
         return jsonify([])
     db = get_db()
     rows = db.execute(
-        'SELECT c.id, c.name, c.semester FROM class c'
-        ' WHERE c.semester IN ('
-        '  SELECT DISTINCT semester FROM student WHERE periodo_id = ?'
-        ' ) ORDER BY c.semester, c.name',
-        (periodo_id,)
+        'SELECT id, name, semester FROM class ORDER BY semester, name'
     ).fetchall()
     return jsonify([dict(r) for r in rows])
 
@@ -428,6 +425,7 @@ def api_delete_grupo(grupo_id):
 @bp.route('/api/clase/<int:clase_id>', methods=['POST'])
 @admin_required
 def api_update_clase(clase_id):
+    # Actualiza el nombre y semestre de una materia desde el modal de edición.
     data = request.get_json()
     db = get_db()
     db.execute('UPDATE class SET name=?, semester=? WHERE id=?',
@@ -619,6 +617,7 @@ def planeaciones():
 @bp.route('/api/planeacion/<int:plan_id>', methods=['GET'])
 @login_required
 def api_get_planeacion(plan_id):
+    # Devuelve los datos completos de una planeación para poblar el modal de edición.
     db = get_db()
     row = db.execute('SELECT * FROM planeaciones WHERE id = ?', (plan_id,)).fetchone()
     if row is None:
@@ -629,6 +628,7 @@ def api_get_planeacion(plan_id):
 @bp.route('/api/planeacion', methods=['POST'])
 @admin_required
 def api_create_planeacion():
+    # Crea una nueva planeación con los datos enviados desde el modal.
     data = request.get_json()
     db = get_db()
     db.execute(
@@ -647,6 +647,7 @@ def api_create_planeacion():
 @bp.route('/api/planeacion/<int:plan_id>', methods=['POST'])
 @admin_required
 def api_update_planeacion(plan_id):
+    # Actualiza todos los campos de una planeación existente.
     data = request.get_json()
     db = get_db()
     db.execute(
@@ -664,6 +665,7 @@ def api_update_planeacion(plan_id):
 @bp.route('/api/planeacion/<int:plan_id>/delete', methods=['POST'])
 @admin_required
 def api_delete_planeacion(plan_id):
+    # Elimina una planeación por su ID.
     db = get_db()
     db.execute('DELETE FROM planeaciones WHERE id = ?', (plan_id,))
     db.commit()

@@ -5,7 +5,7 @@ html {
 }
 
 body {
-  max-width: 960px;
+  max-width: 1200px;
   margin: 0 auto;
   background: white;
 }
@@ -382,7 +382,7 @@ tr.user-inactive td { opacity: 0.55; }
   gap: 0;
   border-bottom: 2px solid #377ba8;
   margin: 1rem 0 1.5rem;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 
 .tabs a {
@@ -587,4 +587,50 @@ tr.user-inactive td { opacity: 0.55; }
 
 .register-student-form .btn-submit:hover {
   background: #2a5d80;
+}
+
+/* ── Página de diagramas ──────────────────────────────────────────────────── */
+
+.diag-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.diag-tab {
+  padding: 0.45rem 1.2rem;
+  border: 2px solid #29468b;
+  border-radius: 4px 4px 0 0;
+  background: #e8edf8;
+  color: #29468b;
+  font-weight: bold;
+  cursor: pointer;
+  font-size: 0.95em;
+}
+
+.diag-tab.active {
+  background: #29468b;
+  color: #fff;
+}
+
+.diag-tab:hover:not(.active) {
+  background: #d0d8f0;
+}
+
+.diag-panel {
+  overflow-x: auto;
+  border: 1px solid #c5cee0;
+  border-radius: 0 4px 4px 4px;
+  background: #fff;
+  padding: 1rem;
+}
+
+.diag-hidden {
+  display: none;
+}
+
+.diag-img {
+  max-width: 100%;
+  height: auto;
+  display: block;
 }

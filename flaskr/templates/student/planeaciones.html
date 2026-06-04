@@ -225,15 +225,26 @@
   // ── Al cambiar periodo: recarga las materias disponibles ────────────────────
   async function loadMaterias(periodoId, selectedId) {
     const sel = document.getElementById('f-materia');
-    sel.innerHTML = '<option value="">-- Selecciona --</option>';
+    sel.innerHTML = '<option value="">-- Cargando... --</option>';
     sel.disabled = true;
-    if (!periodoId) return;
-    const materias = await fetchJson(`/api/materias?periodo_id=${periodoId}`);
-    materias.forEach(m => {
-      const opt = new Option(`${m.name} (Sem. ${m.semester})`, m.id);
-      if (String(m.id) === String(selectedId)) opt.selected = true;
-      sel.add(opt);
-    });
+    if (!periodoId) {
+      sel.innerHTML = '<option value="">-- Selecciona periodo primero --</option>';
+      return;
+    }
+    try {
+      const resp = await fetch(`/api/materias?periodo_id=${periodoId}`);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const materias = await resp.json();
+      sel.innerHTML = '<option value="">-- Selecciona --</option>';
+      materias.forEach(m => {
+        const opt = new Option(`${m.name} (Sem. ${m.semester})`, m.id);
+        if (String(m.id) === String(selectedId)) opt.selected = true;
+        sel.add(opt);
+      });
+    } catch(err) {
+      console.error('loadMaterias error:', err);
+      sel.innerHTML = `<option value="">-- Error: ${err.message} --</option>`;
+    }
     sel.disabled = false;
   }
 
